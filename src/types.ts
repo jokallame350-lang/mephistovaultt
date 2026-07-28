@@ -1,0 +1,67 @@
+import type { DataConnection } from 'peerjs';
+
+// ── App Mode ──
+export type AppMode = 'idle' | 'send' | 'receive';
+
+// ── PeerJS Messages (discriminated union) ──
+export type PeerMessage =
+  | { type: 'metadata'; name: string; size: number; mime: string }
+  | { type: 'chunk'; buffer: ArrayBuffer; offset: number }
+  | { type: 'request-metadata' }
+  | { type: 'request-chunk'; offset: number }
+  | { type: 'chat'; text: string };
+
+// ── Lobby / Discovery Messages ──
+export type LobbyMessage =
+  | { type: 'announce'; device: DeviceInfo }
+  | { type: 'invite'; targetId: string; code: string }
+  | { type: 'lobby-sync'; devices: Record<string, DeviceInfo> };
+
+export type BroadcastMessage =
+  | { type: 'announce'; id: string; name: string; time: number; code?: string }
+  | { type: 'invite'; targetId: string; code: string }
+  | { type: 'lobby-sync'; devices: Record<string, DeviceInfo> };
+
+// ── Device Info ──
+export interface DeviceInfo {
+  id: string;
+  name: string;
+  time: number;
+  code?: string;
+  mode?: AppMode;
+}
+
+// ── File-related ──
+export interface FileMeta {
+  name: string;
+  size: number;
+  type: string;
+}
+
+export interface CompletedFile {
+  blob: Blob;
+  name: string;
+  type: string;
+}
+
+export interface ZipEntry {
+  name: string;
+  path: string;
+  dir: boolean;
+  size: number;
+}
+
+// ── Chat ──
+export interface ChatMessage {
+  id: number;
+  text: string;
+  sender: 'me' | 'peer';
+  emoji?: string;
+}
+
+// ── Lobby Environment ──
+export interface LobbyEnv {
+  readonly isHost: boolean;
+  readonly lobbyConn: DataConnection | null;
+  broadcastToClients: (payload: LobbyMessage | BroadcastMessage) => void;
+}
