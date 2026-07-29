@@ -44,6 +44,10 @@ interface SendViewProps {
   copied: boolean;
   showQR: boolean;
   setShowQR: (v: boolean) => void;
+  expirationSec?: number;
+  setExpirationSec?: (sec: number) => void;
+  isVoiceActive?: boolean;
+  toggleVoiceTalkie?: () => void;
   onCopy: () => void;
   onDownloadQR: () => void;
   onClose: () => void;
@@ -74,6 +78,10 @@ export function SendView({
   copied,
   showQR,
   setShowQR,
+  expirationSec = 0,
+  setExpirationSec,
+  isVoiceActive = false,
+  toggleVoiceTalkie,
   onCopy,
   onDownloadQR,
   onClose,
@@ -238,7 +246,11 @@ export function SendView({
               <span className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-emerald-400" /> Otomatik İmha Süresi:
               </span>
-              <select className="bg-black/60 border border-white/10 text-emerald-400 text-xs font-bold font-mono px-3 py-1.5 rounded-xl focus:outline-none focus:border-emerald-500">
+              <select
+                value={expirationSec}
+                onChange={(e) => setExpirationSec && setExpirationSec(Number(e.target.value))}
+                className="bg-black/60 border border-white/10 text-emerald-400 text-xs font-bold font-mono px-3 py-1.5 rounded-xl focus:outline-none focus:border-emerald-500 cursor-pointer"
+              >
                 {EXPIRATION_OPTIONS.map((opt) => (
                   <option key={opt.id} value={opt.sec} className="bg-slate-900 text-white">
                     {opt.label}
@@ -256,10 +268,14 @@ export function SendView({
                 </div>
                 <button
                   type="button"
-                  onClick={() => alert('🎙️ Phantom Voice P2P Telsiz aktif! Ses doğrudan WebRTC tünelinden iletiliyor.')}
-                  className="px-3 py-1.5 bg-purple-500 hover:bg-purple-400 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md"
+                  onClick={toggleVoiceTalkie}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md cursor-pointer ${
+                    isVoiceActive
+                      ? 'bg-red-500 hover:bg-red-400 text-white animate-pulse'
+                      : 'bg-purple-500 hover:bg-purple-400 text-white'
+                  }`}
                 >
-                  <Mic className="w-3.5 h-3.5" /> Konuş / Dinle
+                  <Mic className="w-3.5 h-3.5" /> {isVoiceActive ? '🎙️ Mik Kapat' : '🎙️ Konuş / Dinle'}
                 </button>
               </div>
             )}

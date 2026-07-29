@@ -43,6 +43,9 @@ interface ReceiveViewProps {
   zipContents: ZipEntry[];
   showZipPreview: boolean;
   setShowZipPreview: (v: boolean) => void;
+  isVoiceActive?: boolean;
+  toggleVoiceTalkie?: () => void;
+  handleBurnOnDownload?: () => void;
   onConnect: (code: string) => void;
   onClose: () => void;
   t: (key: string) => string;
@@ -67,6 +70,9 @@ export function ReceiveView({
   zipContents,
   showZipPreview,
   setShowZipPreview,
+  isVoiceActive = false,
+  toggleVoiceTalkie,
+  handleBurnOnDownload,
   onConnect,
   onClose,
   t,
@@ -214,12 +220,14 @@ export function ReceiveView({
                 </div>
                 <button
                   type="button"
-                  onClick={async () => {
-                    alert('🎙️ Phantom Voice P2P Telsiz aktif! Ses doğrudan WebRTC tünelinden iletiliyor.');
-                  }}
-                  className="px-3 py-1.5 bg-purple-500 hover:bg-purple-400 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md"
+                  onClick={toggleVoiceTalkie}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md cursor-pointer ${
+                    isVoiceActive
+                      ? 'bg-red-500 hover:bg-red-400 text-white animate-pulse'
+                      : 'bg-purple-500 hover:bg-purple-400 text-white'
+                  }`}
                 >
-                  <Mic className="w-3.5 h-3.5" /> Konuş / Dinle
+                  <Mic className="w-3.5 h-3.5" /> {isVoiceActive ? '🎙️ Mik Kapat' : '🎙️ Konuş / Dinle'}
                 </button>
               </div>
             )}
@@ -303,6 +311,7 @@ export function ReceiveView({
                 <button
                   onClick={async () => {
                     await saveFile(completedFile.blob, completedFile.name);
+                    if (handleBurnOnDownload) handleBurnOnDownload();
                   }}
                   className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-bold py-3 px-6 w-full max-w-sm rounded-2xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] flex items-center justify-center mx-auto gap-2 group cursor-pointer"
                   aria-label={`Save ${completedFile.name} to device`}

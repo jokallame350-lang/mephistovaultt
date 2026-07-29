@@ -33,10 +33,13 @@ export function usePeerConnection({
   const [transferETA, setTransferETA] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [expirationSec, setExpirationSec] = useState(0);
+  const [isVoiceActive, setIsVoiceActive] = useState(false);
 
   const peerRef = useRef<Peer | null>(null);
   const connRef = useRef<DataConnection | null>(null);
   const multiConnsRef = useRef<DataConnection[]>([]);
+  const localStreamRef = useRef<MediaStream | null>(null);
   const fileMetaRef = useRef<FileMeta | null>(null);
   const receivedChunksRef = useRef<ArrayBuffer[]>([]);
   const receivedBytesRef = useRef(0);
@@ -101,6 +104,48 @@ export function usePeerConnection({
       connTimerRef.current = null;
     }
   }, [clearChatMessages]);
+
+  const toggleVoiceTalkie = useCallback(async () => {
+    if (isVoiceActive) {
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => track.stop());
+        localStreamRef.current = null;
+      }
+      setIsVoiceActive(false);
+    } else {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        localStreamRef.current = stream;
+        setIsVoiceActive(true);
+
+        if (peerRef.current && connRef.current) {
+          const call = peerRef.current.call(connRef.current.peer, stream);
+          call.on('stream', (remoteStream) => {
+            let audioEl = document.getElementById('phantom-audio') as HTMLAudioElement;
+            if (!audioEl) {
+              audioEl = document.createElement('audio');
+              audioEl.id = 'phantom-audio';
+              audioEl.autoplay = true;
+              document.body.appendChild(audioEl);
+            }
+            audioEl.srcObject = remoteStream;
+            audioEl.play().catch(() => {});
+          });
+        }
+      } catch (err: any) {
+        alert('Mikrofon erişim izni verilmedi: ' + err.message);
+      }
+    }
+  }, [isVoiceActive]);
+
+  const handleBurnOnDownload = useCallback(() => {
+    if (expirationSec === 0) {
+      setTimeout(() => {
+        resetConnection();
+        alert('🔥 Dosya indirildi! Güvenlik protokolü gereği oda ve bellekteki tüm izler imha edildi.');
+      }, 1500);
+    }
+  }, [expirationSec, resetConnection]);
 
   const finalizeDownload = useCallback((name: string, type: string) => {
     const blob = new Blob(receivedChunksRef.current, { type: type || 'application/octet-stream' });
@@ -445,6 +490,11 @@ export function usePeerConnection({
     setCopied,
     showQR,
     setShowQR,
+    expirationSec,
+    setExpirationSec,
+    isVoiceActive,
+    toggleVoiceTalkie,
+    handleBurnOnDownload,
     initSender,
     connectAsReceiver,
     resetConnection,

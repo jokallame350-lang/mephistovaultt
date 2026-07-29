@@ -230,6 +230,10 @@ export function App() {
               copied={peer.copied}
               showQR={peer.showQR}
               setShowQR={peer.setShowQR}
+              expirationSec={peer.expirationSec}
+              setExpirationSec={peer.setExpirationSec}
+              isVoiceActive={peer.isVoiceActive}
+              toggleVoiceTalkie={peer.toggleVoiceTalkie}
               onCopy={handleCopyLink}
               onDownloadQR={handleDownloadQR}
               onClose={() => {
@@ -262,6 +266,9 @@ export function App() {
               zipContents={fileHandler.zipContents}
               showZipPreview={fileHandler.showZipPreview}
               setShowZipPreview={fileHandler.setShowZipPreview}
+              isVoiceActive={peer.isVoiceActive}
+              toggleVoiceTalkie={peer.toggleVoiceTalkie}
+              handleBurnOnDownload={peer.handleBurnOnDownload}
               onConnect={peer.connectAsReceiver}
               onClose={() => {
                 peer.resetConnection();
