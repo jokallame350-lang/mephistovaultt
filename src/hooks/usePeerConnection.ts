@@ -207,118 +207,163 @@ export function usePeerConnection({
     peerRef.current = peer;
   }, [shareCode, resetConnection, sendChunk, fileToShareRef, onChatMessage]);
 
+  // Auto-init sender room when in send mode and shareCode is ready
+  useEffect(() => {
+    if (mode === 'send' && shareCode && !peerRef.current) {
+      initSender();
+    }
+  }, [mode, shareCode, initSender]);
+
   const connectAsReceiver = useCallback(
     (code: string) => {
       resetConnection();
       setErrorStatus(null);
       setTransferProgress(0); // Show connection loader
 
-      const parts = code.trim().toLowerCase().split('#');
-      const cleanCode = parts[0].replace(/-/g, '');
+      // Sanitize room code
+      let sanitizedCode = code.trim().toLowerCase();
+      try {
+        if (sanitizedCode.includes('room=')) {
+          sanitizedCode = decodeURIComponent(sanitizedCode.split('room=')[1].split('&')[0]);
+        }
+      } catch {
+        // ignore
+      }
+
+      const parts = sanitizedCode.split('#');
+      const cleanCode = parts[0].replace(/[^a-z0-9]/g, '');
       const targetId = `mephisto-${cleanCode}`;
 
       const peer = new Peer(PEER_CONFIG);
 
       peer.on('open', () => {
-        const conn = peer.connect(targetId, { reliable: true });
-        connRef.current = conn;
+        let attempts = 0;
+        const maxAttempts = 5;
+        let connected = false;
 
-        conn.on('open', () => {
-          setIsConnected(true);
+        const tryConnect = () => {
+          if (connected) return;
+          attempts++;
 
-          const handshakeInterval = setInterval(() => {
-            if (fileMetaRef.current || !conn.open) {
-              clearInterval(handshakeInterval);
-              return;
-            }
-            conn.send({ type: 'request-metadata' });
-          }, 500);
-        });
+          const conn = peer.connect(targetId, { reliable: true });
+          connRef.current = conn;
 
-        conn.on('data', async (data: any) => {
-          try {
-            const typedData = data as PeerMessage;
-            if (typedData.type === 'metadata') {
-              if (!fileMetaRef.current) {
-                const meta = {
-                  name: typedData.name,
-                  size: typedData.size,
-                  type: typedData.mime,
-                };
-                setFileMeta(meta);
-                fileMetaRef.current = meta;
-                receivedChunksRef.current = [];
-                receivedBytesRef.current = 0;
-                requestedOffsetRef.current = 0;
-                setTransferProgress(0);
-                lastSpeedCalcRef.current = { time: Date.now(), bytes: 0 };
+          conn.on('open', () => {
+            connected = true;
+            setIsConnected(true);
+            setErrorStatus(null);
 
-                // Pipeline: Request initial window of 8 parallel chunks
-                const WINDOW_SIZE = 8;
-                for (let i = 0; i < WINDOW_SIZE; i++) {
+            const handshakeInterval = setInterval(() => {
+              if (fileMetaRef.current || !conn.open) {
+                clearInterval(handshakeInterval);
+                return;
+              }
+              conn.send({ type: 'request-metadata' });
+            }, 500);
+          });
+
+          conn.on('data', async (data: any) => {
+            try {
+              const typedData = data as PeerMessage;
+              if (typedData.type === 'metadata') {
+                if (!fileMetaRef.current) {
+                  const meta = {
+                    name: typedData.name,
+                    size: typedData.size,
+                    type: typedData.mime,
+                  };
+                  setFileMeta(meta);
+                  fileMetaRef.current = meta;
+                  receivedChunksRef.current = [];
+                  receivedBytesRef.current = 0;
+                  requestedOffsetRef.current = 0;
+                  setTransferProgress(0);
+                  lastSpeedCalcRef.current = { time: Date.now(), bytes: 0 };
+
+                  // Pipeline: Request initial window of 8 parallel chunks
+                  const WINDOW_SIZE = 8;
+                  for (let i = 0; i < WINDOW_SIZE; i++) {
+                    if (requestedOffsetRef.current < meta.size) {
+                      conn.send({ type: 'request-chunk', offset: requestedOffsetRef.current });
+                      requestedOffsetRef.current += CHUNK_SIZE;
+                    }
+                  }
+                }
+              } else if (typedData.type === 'chunk') {
+                const buffer = typedData.buffer;
+                if (!buffer) throw new Error('Empty buffer received.');
+
+                // Decrypt using AES-256-GCM
+                const key = await deriveKey(sanitizedCode);
+                const decrypted = await decryptChunk(buffer, key);
+
+                const byteLength =
+                  decrypted.byteLength !== undefined
+                    ? decrypted.byteLength
+                    : (decrypted as any).length !== undefined
+                    ? (decrypted as any).length
+                    : 0;
+
+                if (byteLength === 0) throw new Error('Received chunk has zero length.');
+
+                receivedChunksRef.current.push(decrypted);
+                receivedBytesRef.current += byteLength;
+
+                const meta = fileMetaRef.current;
+                if (meta) {
+                  calculateSpeedAndETA(receivedBytesRef.current, meta.size);
+                  const progress = Math.round((receivedBytesRef.current / meta.size) * 100);
+
                   if (requestedOffsetRef.current < meta.size) {
                     conn.send({ type: 'request-chunk', offset: requestedOffsetRef.current });
                     requestedOffsetRef.current += CHUNK_SIZE;
                   }
+
+                  if (receivedBytesRef.current < meta.size) {
+                    setTransferProgress(Math.min(99, progress));
+                  } else {
+                    setTransferProgress(100);
+                    finalizeDownload(meta.name, meta.type);
+                  }
                 }
+              } else if (typedData.type === 'chat') {
+                onChatMessage(typedData.text);
               }
-            } else if (typedData.type === 'chunk') {
-              const buffer = typedData.buffer;
-              if (!buffer) throw new Error('Empty buffer received.');
-
-              // Decrypt using AES-256-GCM
-              const key = await deriveKey(code);
-              const decrypted = await decryptChunk(buffer, key);
-
-              const byteLength =
-                decrypted.byteLength !== undefined
-                  ? decrypted.byteLength
-                  : (decrypted as any).length !== undefined
-                  ? (decrypted as any).length
-                  : 0;
-
-              if (byteLength === 0) throw new Error('Received chunk has zero length.');
-
-              receivedChunksRef.current.push(decrypted);
-              receivedBytesRef.current += byteLength;
-
-              const meta = fileMetaRef.current;
-              if (meta) {
-                calculateSpeedAndETA(receivedBytesRef.current, meta.size);
-                const progress = Math.round((receivedBytesRef.current / meta.size) * 100);
-
-                if (requestedOffsetRef.current < meta.size) {
-                  conn.send({ type: 'request-chunk', offset: requestedOffsetRef.current });
-                  requestedOffsetRef.current += CHUNK_SIZE;
-                }
-
-                if (receivedBytesRef.current < meta.size) {
-                  setTransferProgress(Math.min(99, progress));
-                } else {
-                  setTransferProgress(100);
-                  finalizeDownload(meta.name, meta.type);
-                }
-              }
-            } else if (typedData.type === 'chat') {
-              onChatMessage(typedData.text);
+            } catch (err: any) {
+              setErrorStatus(ERRORS.PARSE_ERR + err.message);
             }
-          } catch (err: any) {
-            setErrorStatus(ERRORS.PARSE_ERR + err.message);
-          }
-        });
+          });
 
-        conn.on('close', () => {
-          setIsConnected(false);
-        });
+          conn.on('close', () => {
+            setIsConnected(false);
+          });
 
-        conn.on('error', (err) => {
-          if (err.message && err.message.includes('Negotiation of connection')) return;
-          setErrorStatus(ERRORS.CONN_ERR + ': ' + err.message);
-        });
+          conn.on('error', (err) => {
+            if (err.message && err.message.includes('Negotiation of connection')) return;
+            if (!connected && attempts < maxAttempts) {
+              setTimeout(tryConnect, 1500);
+            } else {
+              setErrorStatus(ERRORS.CONN_ERR + ': ' + err.message);
+            }
+          });
+
+          // Fallback retry if connection not opened after 2 seconds
+          setTimeout(() => {
+            if (!connected && attempts < maxAttempts) {
+              tryConnect();
+            }
+          }, 2000);
+        };
+
+        tryConnect();
       });
 
-      peer.on('error', () => {
-        setErrorStatus(ERRORS.PEER_NOT_FOUND);
+      peer.on('error', (perr: any) => {
+        if (perr.type === 'peer-unavailable') {
+          setErrorStatus('Oda henüz hazır değil veya kod hatalı. Lütfen oda kodunu kontrol edip tekrar deneyin.');
+        } else {
+          setErrorStatus(ERRORS.PEER_NOT_FOUND);
+        }
         setTransferProgress(-1);
       });
 
