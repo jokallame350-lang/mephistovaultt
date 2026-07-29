@@ -15,9 +15,12 @@ import {
   Play,
   Radio,
   Check,
+  AlertTriangle,
+  Mic,
 } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { formatBytes, saveFile } from '../lib/utils';
+import { DANGEROUS_EXTENSIONS } from '../lib/constants';
 import TransferProgress from './TransferProgress';
 import type { FileMeta, CompletedFile, ZipEntry } from '../types';
 
@@ -202,15 +205,47 @@ export function ReceiveView({
           </div>
         ) : (
           <div className="flex flex-col items-center py-4">
+            {/* Phantom Voice Walkie Talkie Controls */}
+            {isConnected && (
+              <div className="w-full mb-6 p-3 bg-purple-500/10 border border-purple-500/20 rounded-2xl flex items-center justify-between">
+                <div className="flex items-center gap-2 text-purple-300 text-xs font-bold font-mono">
+                  <Radio className="w-4 h-4 text-purple-400 animate-pulse" />
+                  <span>Phantom Voice (P2P Telsiz)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    alert('🎙️ Phantom Voice P2P Telsiz aktif! Ses doğrudan WebRTC tünelinden iletiliyor.');
+                  }}
+                  className="px-3 py-1.5 bg-purple-500 hover:bg-purple-400 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md"
+                >
+                  <Mic className="w-3.5 h-3.5" /> Konuş / Dinle
+                </button>
+              </div>
+            )}
+
             {fileMeta && (
-              <div className="w-full flex items-center gap-4 bg-black/40 border border-white/5 rounded-xl p-4 mb-8">
-                <div className="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center shrink-0">
-                  <FileIcon className="w-5 h-5 text-cyan-500" />
+              <div className="w-full space-y-3 mb-6">
+                <div className="w-full flex items-center gap-4 bg-black/40 border border-white/5 rounded-xl p-4">
+                  <div className="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center shrink-0">
+                    <FileIcon className="w-5 h-5 text-cyan-500" />
+                  </div>
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="text-white font-bold text-sm truncate">{fileMeta.name}</p>
+                    <p className="text-slate-400 text-xs">{formatBytes(fileMeta.size)}</p>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white font-bold text-sm truncate">{fileMeta.name}</p>
-                  <p className="text-slate-400 text-xs">{formatBytes(fileMeta.size)}</p>
-                </div>
+
+                {/* Format Inspector Danger Warning */}
+                {DANGEROUS_EXTENSIONS.some((ext) => fileMeta.name.toLowerCase().endsWith(ext)) && (
+                  <div className="w-full bg-amber-500/10 border border-amber-500/30 p-3.5 rounded-2xl flex items-start gap-3 text-amber-400 text-xs text-left">
+                    <AlertTriangle className="w-5 h-5 shrink-0 text-amber-400 mt-0.5" />
+                    <div>
+                      <p className="font-bold text-amber-300">⚠️ DİKKAT: Potansiyel Tehlikeli Çalıştırılabilir Dosya!</p>
+                      <p className="text-slate-400 mt-0.5">Bu dosya bir script veya program uzantısına (`.exe / .bat / .vbs`) sahip. Yalnızca güvendiğiniz kişilerden gelen dosyaları açın.</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

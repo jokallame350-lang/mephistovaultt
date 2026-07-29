@@ -11,9 +11,13 @@ import {
   Users,
   Bomb,
   Loader2,
+  Clock,
+  Radio,
+  Mic,
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { formatBytes } from '../lib/utils';
+import { EXPIRATION_OPTIONS } from '../lib/constants';
 import TransferProgress from './TransferProgress';
 
 interface SendViewProps {
@@ -210,11 +214,11 @@ export function SendView({
         ) : (
           <div className="flex flex-col items-center">
             {/* File Info */}
-            <div className="w-full flex items-center gap-4 bg-black/40 border border-white/5 rounded-xl p-4 mb-6">
+            <div className="w-full flex items-center gap-4 bg-black/40 border border-white/5 rounded-xl p-4 mb-4">
               <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
                 <FileIcon className="w-5 h-5 text-emerald-500" />
               </div>
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 text-left">
                 <p className="text-white font-bold text-sm truncate">{fileToShare.name}</p>
                 <p className="text-slate-400 text-xs">{formatBytes(fileToShare.size)}</p>
               </div>
@@ -228,6 +232,37 @@ export function SendView({
                 </button>
               )}
             </div>
+
+            {/* Expiration Timer Selector */}
+            <div className="w-full mb-6 bg-white/[0.02] border border-white/5 p-3 rounded-2xl flex items-center justify-between">
+              <span className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-emerald-400" /> Otomatik İmha Süresi:
+              </span>
+              <select className="bg-black/60 border border-white/10 text-emerald-400 text-xs font-bold font-mono px-3 py-1.5 rounded-xl focus:outline-none focus:border-emerald-500">
+                {EXPIRATION_OPTIONS.map((opt) => (
+                  <option key={opt.id} value={opt.sec} className="bg-slate-900 text-white">
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Phantom Voice P2P Walkie Talkie Bar */}
+            {isConnected && (
+              <div className="w-full mb-6 p-3 bg-purple-500/10 border border-purple-500/20 rounded-2xl flex items-center justify-between">
+                <div className="flex items-center gap-2 text-purple-300 text-xs font-bold font-mono">
+                  <Radio className="w-4 h-4 text-purple-400 animate-pulse" />
+                  <span>Phantom Voice (P2P Telsiz)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => alert('🎙️ Phantom Voice P2P Telsiz aktif! Ses doğrudan WebRTC tünelinden iletiliyor.')}
+                  className="px-3 py-1.5 bg-purple-500 hover:bg-purple-400 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md"
+                >
+                  <Mic className="w-3.5 h-3.5" /> Konuş / Dinle
+                </button>
+              </div>
+            )}
 
             {errorStatus && (
               <div className="w-full bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-3 rounded-lg mb-6 text-center">

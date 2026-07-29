@@ -79,6 +79,18 @@ export function App() {
   // Initialize file handler
   const fileHandler = useFileHandler(peer.completedFile);
 
+  // Web Share Target API: Parse shared text or link from mobile share menu
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sharedText = params.get('text') || params.get('title') || params.get('url');
+    if (sharedText) {
+      const blob = new Blob([sharedText], { type: 'text/plain;charset=utf-8' });
+      const sharedFile = new File([blob], `shared-note-${Date.now().toString().slice(-4)}.txt`, { type: 'text/plain' });
+      fileHandler.processFiles([sharedFile]);
+      peer.setMode('send');
+    }
+  }, [fileHandler, peer]);
+
   // Keep ref in sync with state
   useEffect(() => {
     fileToShareRef.current = fileHandler.fileToShare;

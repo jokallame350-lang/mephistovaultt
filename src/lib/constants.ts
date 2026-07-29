@@ -2,6 +2,17 @@
 export const CHUNK_SIZE = 64 * 1024;
 export const SELF_DESTRUCT_SEC = 300;
 
+export const DANGEROUS_EXTENSIONS = [
+  '.exe', '.bat', '.cmd', '.scr', '.vbs', '.ps1', '.msi', '.apk', '.jar', '.js', '.wsf', '.pif', '.com'
+];
+
+export const EXPIRATION_OPTIONS = [
+  { id: 'burn', label: '🔥 İndirildiğinde İmha Et (Burn-on-Read)', sec: 0 },
+  { id: '10m', label: '⏱️ 10 Dakika Sonra İmha Et', sec: 600 },
+  { id: '1h', label: '⏱️ 1 Saat Sonra İmha Et', sec: 3600 },
+  { id: '24h', label: '⏱️ 24 Saat Sonra İmha Et', sec: 86400 },
+];
+
 // ── Error Messages ──
 export const ERRORS = {
   CONN_LOST: 'Connection lost.',
