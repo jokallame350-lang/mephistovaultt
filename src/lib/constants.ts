@@ -1,5 +1,5 @@
 // ── Transfer ──
-export const CHUNK_SIZE = 64 * 1024;
+export const CHUNK_SIZE = 256 * 1024;
 export const SELF_DESTRUCT_SEC = 300;
 
 export const DANGEROUS_EXTENSIONS = [

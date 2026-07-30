@@ -14,6 +14,8 @@ import {
   Clock,
   Radio,
   Mic,
+  Camera,
+  Monitor,
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { formatBytes } from '../lib/utils';
@@ -210,10 +212,74 @@ export function SendView({
                         setFileToShare(noteFile);
                       }
                     }}
-                    className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-purple-500/20 border border-white/10 hover:border-purple-500/30 rounded-xl text-sm text-slate-300 hover:text-white transition-all"
+                    className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-purple-500/20 border border-white/10 hover:border-purple-500/30 rounded-xl text-sm text-slate-300 hover:text-white transition-all cursor-pointer"
                     aria-label="Quick text share"
                   >
                     ⚡ Hızlı Metin
+                  </button>
+
+                  {/* Instant Camera Capture to RAM */}
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      try {
+                        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                        const video = document.createElement('video');
+                        video.srcObject = stream;
+                        await video.play();
+                        const canvas = document.createElement('canvas');
+                        canvas.width = video.videoWidth || 1280;
+                        canvas.height = video.videoHeight || 720;
+                        const ctx = canvas.getContext('2d');
+                        ctx?.drawImage(video, 0, 0);
+                        stream.getTracks().forEach((t) => t.stop());
+                        canvas.toBlob((blob) => {
+                          if (blob) {
+                            const snapFile = new File([blob], `ram-camera-snap-${Date.now().toString().slice(-4)}.jpg`, { type: 'image/jpeg' });
+                            setFileToShare(snapFile);
+                          }
+                        }, 'image/jpeg', 0.9);
+                      } catch (err: any) {
+                        alert('Kamera başlatılamadı: ' + err.message);
+                      }
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-pink-500/20 border border-white/10 hover:border-pink-500/30 rounded-xl text-sm text-slate-300 hover:text-white transition-all cursor-pointer"
+                    title="Cihaza kaydetmeden anlık fotoğraf çekip gönder"
+                  >
+                    <Camera className="w-4 h-4 text-pink-400" /> 📸 Anlık Foto Çek
+                  </button>
+
+                  {/* Instant Screen Capture to RAM */}
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      try {
+                        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                        const video = document.createElement('video');
+                        video.srcObject = stream;
+                        await video.play();
+                        const canvas = document.createElement('canvas');
+                        canvas.width = video.videoWidth || 1920;
+                        canvas.height = video.videoHeight || 1080;
+                        const ctx = canvas.getContext('2d');
+                        ctx?.drawImage(video, 0, 0);
+                        stream.getTracks().forEach((t) => t.stop());
+                        canvas.toBlob((blob) => {
+                          if (blob) {
+                            const screenFile = new File([blob], `ram-screen-cap-${Date.now().toString().slice(-4)}.png`, { type: 'image/png' });
+                            setFileToShare(screenFile);
+                          }
+                        }, 'image/png');
+                      } catch (err: any) {
+                        alert('Ekran yakalanamadı: ' + err.message);
+                      }
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-blue-500/20 border border-white/10 hover:border-blue-500/30 rounded-xl text-sm text-slate-300 hover:text-white transition-all cursor-pointer"
+                    title="Cihaza kaydetmeden ekran görüntüsü alıp gönder"
+                  >
+                    <Monitor className="w-4 h-4 text-blue-400" /> 🖥️ Ekran Yakala
                   </button>
                 </div>
               </div>

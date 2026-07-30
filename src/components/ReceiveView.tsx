@@ -17,10 +17,13 @@ import {
   Check,
   AlertTriangle,
   Mic,
+  Database,
 } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { formatBytes, saveFile } from '../lib/utils';
 import { DANGEROUS_EXTENSIONS } from '../lib/constants';
+import { inspectFileSafety } from '../lib/sandboxInspector';
+import { saveToMemoryVault } from '../lib/memoryVault';
 import TransferProgress from './TransferProgress';
 import type { FileMeta, CompletedFile, ZipEntry } from '../types';
 
@@ -77,6 +80,14 @@ export function ReceiveView({
   onClose,
   t,
 }: ReceiveViewProps) {
+  const isScanningRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (showQRScanner) {
+      isScanningRef.current = false;
+    }
+  }, [showQRScanner]);
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onConnect(receiveCode);
@@ -185,12 +196,18 @@ export function ReceiveView({
                 <div className="w-full bg-black relative">
                   <Scanner
                     onScan={(result) => {
-                      if (!result || result.length === 0) return;
+                      if (!result || result.length === 0 || isScanningRef.current) return;
+                      isScanningRef.current = true;
+
                       const decodedText = result[0].rawValue;
                       let finalCode = decodedText;
                       try {
-                        const url = new URL(decodedText);
-                        finalCode = url.searchParams.get('room') || decodedText;
+                        if (decodedText.includes('room=')) {
+                          finalCode = decodeURIComponent(decodedText.split('room=')[1].split('&')[0]);
+                        } else {
+                          const url = new URL(decodedText);
+                          finalCode = url.searchParams.get('room') || decodedText;
+                        }
                       } catch {
                         // Plain text fallback
                       }
@@ -308,19 +325,67 @@ export function ReceiveView({
                   </div>
                 )}
 
-                <button
-                  onClick={async () => {
-                    await saveFile(completedFile.blob, completedFile.name);
-                    if (handleBurnOnDownload) handleBurnOnDownload();
-                  }}
-                  className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-bold py-3 px-6 w-full max-w-sm rounded-2xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] flex items-center justify-center mx-auto gap-2 group cursor-pointer"
-                  aria-label={`Save ${completedFile.name} to device`}
-                >
-                  <Download className="w-5 h-5 shrink-0 group-hover:-translate-y-1 transition-transform" />
-                  <span className="truncate max-w-[200px] sm:max-w-[300px]">
-                    {t('save')} {completedFile.name}
-                  </span>
-                </button>
+                {/* Sandbox Script Inspection Card */}
+                {(() => {
+                  const report = inspectFileSafety(completedFile.name, completedFile.blob.size, completedFile.type);
+                  return (
+                    <div className={`w-full max-w-sm mx-auto p-3.5 rounded-2xl border text-left text-xs space-y-1.5 ${
+                      report.status === 'danger'
+                        ? 'bg-red-500/10 border-red-500/30 text-red-300'
+                        : report.status === 'warning'
+                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                        : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                    }`}>
+                      <div className="flex items-center justify-between font-bold text-sm">
+                        <span className="flex items-center gap-1.5">
+                          <Shield className="w-4 h-4" /> 🛡️ Sandbox Analizi
+                        </span>
+                        <span>{report.label}</span>
+                      </div>
+                      <div className="space-y-1 text-slate-300 text-[11px] font-mono">
+                        {report.details.map((d, idx) => (
+                          <div key={idx} className="flex items-center gap-1">
+                            • {d}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="flex flex-col gap-2.5 w-full max-w-sm mx-auto">
+                  <button
+                    onClick={async () => {
+                      await saveFile(completedFile.blob, completedFile.name);
+                      if (handleBurnOnDownload) handleBurnOnDownload();
+                    }}
+                    className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-bold py-3 px-6 w-full rounded-2xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] flex items-center justify-center gap-2 group cursor-pointer"
+                    aria-label={`Save ${completedFile.name} to device`}
+                  >
+                    <Download className="w-5 h-5 shrink-0 group-hover:-translate-y-1 transition-transform" />
+                    <span className="truncate">
+                      {t('save')} {completedFile.name}
+                    </span>
+                  </button>
+
+                  {/* In-Browser Memory Vault Save (Disk-free) */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await saveToMemoryVault(completedFile.blob, completedFile.name, completedFile.type);
+                        alert('💾 Dosya cihaza indirilmeden şifreli tarayıcı hafıza kasasına alındı! İstediğiniz an silebilirsiniz.');
+                        if (handleBurnOnDownload) handleBurnOnDownload();
+                      } catch (err: any) {
+                        alert('Hafıza kasasına yazma hatası: ' + err.message);
+                      }
+                    }}
+                    className="bg-white/5 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-500/30 text-cyan-300 hover:text-cyan-100 font-bold py-2.5 px-4 w-full rounded-2xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer"
+                    title="Cihazın İndirilenler klasöründe iz bırakmadan gizli tarayıcı hafızasına sakla"
+                  >
+                    <Database className="w-4 h-4 text-cyan-400" /> 💾 Diske Yazmadan Geçici Kasaya Sakla
+                  </button>
+                </div>
 
                 {/* ZIP Content Viewer Toggle */}
                 {zipContents.length > 0 && (
@@ -366,6 +431,29 @@ export function ReceiveView({
                                     </p>
                                   )}
                                 </div>
+                                {!f.dir && completedFile && (
+                                  <button
+                                    type="button"
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      try {
+                                        const JSZip = (await import('jszip')).default;
+                                        const loadedZip = await JSZip.loadAsync(completedFile.blob);
+                                        const zipFile = loadedZip.file(f.path);
+                                        if (zipFile) {
+                                          const singleBlob = await zipFile.async('blob');
+                                          await saveFile(singleBlob, f.name);
+                                        }
+                                      } catch (err: any) {
+                                        alert('Dosya çıkarılamadı: ' + err.message);
+                                      }
+                                    }}
+                                    className="px-2 py-1 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 shrink-0 cursor-pointer"
+                                    title="Bu dosyayı tek başına indir"
+                                  >
+                                    <Download className="w-3 h-3" /> Tek İndir
+                                  </button>
+                                )}
                               </div>
                             ))}
                           </div>

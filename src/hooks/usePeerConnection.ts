@@ -169,10 +169,10 @@ export function usePeerConnection({
         const key = await deriveKey(shareCode);
         const encrypted = await encryptChunk(buffer, key);
 
-        // WebRTC DataChannel backpressure throttling to prevent packet drop
+        // WebRTC DataChannel backpressure throttling to prevent packet drop (4MB buffer threshold)
         const dataChannel = (conn as any)._dc || (conn as any).dataChannel;
-        if (dataChannel && dataChannel.bufferedAmount > 256 * 1024) {
-          await new Promise((resolve) => setTimeout(resolve, 20));
+        if (dataChannel && dataChannel.bufferedAmount > 4 * 1024 * 1024) {
+          await new Promise((resolve) => setTimeout(resolve, 5));
         }
 
         conn.send({
@@ -325,8 +325,8 @@ export function usePeerConnection({
                   setTransferProgress(0);
                   lastSpeedCalcRef.current = { time: Date.now(), bytes: 0 };
 
-                  // Pipeline: Request initial window of 8 parallel chunks
-                  const WINDOW_SIZE = 8;
+                  // Pipeline: Request initial window of 32 parallel chunks (8MB in flight)
+                  const WINDOW_SIZE = 32;
                   for (let i = 0; i < WINDOW_SIZE; i++) {
                     if (requestedOffsetRef.current < meta.size) {
                       conn.send({ type: 'request-chunk', offset: requestedOffsetRef.current });
