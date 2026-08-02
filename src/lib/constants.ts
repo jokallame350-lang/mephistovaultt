@@ -18,15 +18,16 @@ export const EXPIRATION_OPTIONS = [
 
 // ── Error Messages ──
 export const ERRORS = {
-  CONN_LOST: 'Connection lost.',
-  CONN_CLOSED: 'Connection closed unexpectedly.',
-  PARSE_ERR: 'Data parsing error: ',
-  SEND_CHUNK_ERR: 'Failed to send file chunk: ',
-  PEER_NOT_FOUND: 'Error: Could not find or connect to that peer. Check the code.',
-  PEER_UNAVAILABLE: 'Oda henüz hazır değil veya kod hatalı. Lütfen oda kodunu kontrol edip tekrar deneyin.',
+  CONN_LOST: 'Gönderici ayrıldı veya bağlantı koptu.',
+  CONN_CLOSED: 'Bağlantı beklenmedik şekilde kapandı.',
+  PARSE_ERR: 'Veri ayrıştırma hatası: ',
+  SEND_CHUNK_ERR: 'Dosya parçası gönderilemedi: ',
+  PEER_NOT_FOUND: 'Oda bulunamadı. Lütfen oda kodunu kontrol edip tekrar deneyin.',
+  PEER_UNAVAILABLE: 'Oda henüz hazır değil veya kod hatalı. Lütfen göndericinin aktif olduğunu doğrulayın.',
   ROOM_CODE_TAKEN: 'Oda kodu zaten kullanımda. Lütfen yeni bir kod oluşturun.',
   DECRYPTION_ERR: 'Şifre çözme hatası. Şifreleme anahtarı veya veri bozuk.',
-  CONN_ERR: 'Connection error',
+  CONN_ERR: 'Bağlantı hatası',
+  SENDER_NOT_RESPONDING: 'Gönderici yanıt vermiyor. Lütfen göndericinin oda ekranının açık olduğunu doğrulayın.',
 } as const;
 
 // ── PeerJS ICE Config ──

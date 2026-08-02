@@ -13,7 +13,7 @@ import {
   PEER_ID_PREFIX,
 } from '../lib/constants';
 import { deriveKey, encryptChunk, decryptChunk, clearKeyCache } from '../lib/encryption';
-import { formatETA, formatSpeed } from '../lib/utils';
+import { formatETA, formatSpeed, parseRoomCode } from '../lib/utils';
 import type { FileMeta, CompletedFile, PeerMessage, PeerDataConnectionExt, PeerCustomError } from '../types';
 
 interface UsePeerConnectionProps {
@@ -359,18 +359,14 @@ export function usePeerConnection({
   const connectAsReceiver = useCallback(
     (code: string) => {
       resetConnection();
+      setMode('receive');
       setErrorStatus(null);
       setTransferProgress(0); // Show connection loader
 
-      // Sanitize room code
-      let sanitizedCode = code.trim().toLowerCase();
-      try {
-        if (sanitizedCode.includes('room=')) {
-          sanitizedCode = decodeURIComponent(sanitizedCode.split('room=')[1].split('&')[0]);
-        }
-      } catch {
-        // ignore
-      }
+      // Sanitize room code cleanly with parseRoomCode
+      const parsedCode = parseRoomCode(code);
+      const sanitizedCode = (parsedCode || code).trim().toLowerCase();
+      setReceiveCode(sanitizedCode);
 
       const parts = sanitizedCode.split('#');
       const cleanCode = parts[0].replace(/[^a-z0-9]/g, '');

@@ -237,11 +237,31 @@ export const ReceiveView = React.memo(function ReceiveView({
       </div>
       <div className="p-6 md:p-8">
         {errorStatus && (
-          <div
-            role="alert"
-            className="w-full bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-3.5 rounded-xl mb-6 text-center font-medium"
-          >
-            {errorStatus}
+          <div className="w-full space-y-3 mb-6">
+            <div
+              role="alert"
+              className="w-full bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-3.5 rounded-xl text-center font-medium"
+            >
+              {errorStatus}
+            </div>
+            <div className="flex gap-2 w-full max-w-sm mx-auto">
+              <button
+                type="button"
+                onClick={() => onConnect(receiveCode)}
+                className="flex-1 bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/40 text-cyan-300 font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <RefreshCw className="w-4 h-4" /> Yeniden Bağlan
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                }}
+                className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                ✏️ Kodu Değiştir
+              </button>
+            </div>
           </div>
         )}
 

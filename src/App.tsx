@@ -13,7 +13,7 @@ import ReceiveView from './components/ReceiveView';
 import GhostChat from './components/GhostChat';
 import NearbyDevices from './components/NearbyDevices';
 import SEOFooter from './components/SEOFooter';
-import { playTransferSound, copyToClipboard, downloadQRCode, generateCode } from './lib/utils';
+import { playTransferSound, copyToClipboard, downloadQRCode, generateCode, parseRoomCode } from './lib/utils';
 
 import type { PeerMessage } from './types';
 
@@ -126,37 +126,17 @@ export function App() {
 
   // Auto-connect room from URL query (?room=CODE) or hash (#CODE) on mount
   useEffect(() => {
-    let roomCode: string | null = null;
+    const rawUrl = window.location.href;
+    const roomCode = parseRoomCode(rawUrl);
 
-    // 1. Parse query parameter ?room=CODE
-    const params = new URLSearchParams(window.location.search);
-    const queryRoom = params.get('room');
-    if (queryRoom && queryRoom.trim()) {
-      roomCode = queryRoom.trim();
-    }
-
-    // 2. Parse hash #CODE (or #room=CODE or #/CODE) if query param is empty
-    if (!roomCode && window.location.hash && window.location.hash.length > 1) {
-      const rawHash = decodeURIComponent(window.location.hash.substring(1)).trim();
-      if (rawHash) {
-        if (rawHash.startsWith('room=')) {
-          roomCode = rawHash.replace(/^room=/, '');
-        } else if (rawHash.startsWith('/')) {
-          roomCode = rawHash.replace(/^\//, '');
-        } else {
-          roomCode = rawHash;
-        }
-      }
-    }
-
-    if (roomCode) {
-      // Clean URL (search params & hash) without triggering a page reload
+    if (roomCode && roomCode.length >= 7) {
+      // Clean URL without triggering a page reload
       window.history.replaceState({}, '', window.location.pathname);
       peer.setReceiveCode(roomCode);
       peer.setMode('receive');
       // Auto-connect after a short delay
       setTimeout(() => {
-        peer.connectAsReceiver(roomCode!);
+        peer.connectAsReceiver(roomCode);
       }, 300);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

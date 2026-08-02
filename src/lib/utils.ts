@@ -99,23 +99,33 @@ export function parseRoomCode(rawInput: string): string {
   if (str.includes('room=')) {
     const afterRoom = str.split('room=')[1];
     if (afterRoom) {
-      const paramValue = afterRoom.split('&')[0];
+      let paramValue = afterRoom.split('&')[0];
       try {
-        str = decodeURIComponent(paramValue);
+        paramValue = decodeURIComponent(paramValue);
       } catch {
-        str = paramValue;
+        // ignore
       }
+      str = paramValue;
     }
   }
   // 2. Handle URL format (http/https)
   else if (/^https?:\/\//i.test(str)) {
     try {
       const url = new URL(str);
-      const roomParam = url.searchParams.get('room') || url.searchParams.get('code') || url.searchParams.get('id');
+      let roomParam = url.searchParams.get('room') || url.searchParams.get('code') || url.searchParams.get('id');
       if (roomParam) {
-        str = roomParam;
+        try {
+          roomParam = decodeURIComponent(roomParam);
+        } catch {
+          // ignore
+        }
+        if (url.hash && !roomParam.includes('#')) {
+          str = `${roomParam}${url.hash}`;
+        } else {
+          str = roomParam;
+        }
       } else if (url.hash) {
-        const hashContent = url.hash.replace(/^#\/?/, '');
+        const hashContent = decodeURIComponent(url.hash.replace(/^#\/?/, '')).trim();
         if (hashContent.includes('room=')) {
           str = hashContent.split('room=')[1].split('&')[0];
         } else if (hashContent.startsWith('room/')) {
