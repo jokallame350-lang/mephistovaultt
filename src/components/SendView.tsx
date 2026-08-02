@@ -17,6 +17,10 @@ import {
   Mic,
   Camera,
   Monitor,
+  Share2,
+  Send,
+  Mail,
+  Maximize2,
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { formatBytes } from '../lib/utils';
@@ -92,6 +96,7 @@ export const SendView = React.memo(function SendView({
 }: SendViewProps) {
   const [showQuickTextModal, setShowQuickTextModal] = useState(false);
   const [quickTextContent, setQuickTextContent] = useState('');
+  const [isQRLightboxOpen, setIsQRLightboxOpen] = useState(false);
 
   const handleQuickTextSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -500,14 +505,24 @@ export const SendView = React.memo(function SendView({
                       />
                     </button>
                     {showQR && (
-                      <button
-                        onClick={onDownloadQR}
-                        className="bg-white/5 hover:bg-white/10 border border-white/5 p-3 rounded-xl transition-colors group cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                        title="Download QR as PNG"
-                        aria-label="Download QR code image as PNG"
-                      >
-                        <Download className="w-5 h-5 text-slate-400 group-hover:text-white" />
-                      </button>
+                      <>
+                        <button
+                          onClick={onDownloadQR}
+                          className="bg-white/5 hover:bg-white/10 border border-white/5 p-3 rounded-xl transition-colors group cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                          title="Download HD QR (1024x1024 PNG)"
+                          aria-label="Download QR code image as HD PNG"
+                        >
+                          <Download className="w-5 h-5 text-slate-400 group-hover:text-white" />
+                        </button>
+                        <button
+                          onClick={() => setIsQRLightboxOpen(true)}
+                          className="bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 p-3 rounded-xl transition-colors group cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                          title="Büyüt (Lightbox)"
+                          aria-label="QR Kodu Büyüt"
+                        >
+                          <Maximize2 className="w-5 h-5 text-emerald-400 group-hover:text-emerald-300" />
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -518,18 +533,116 @@ export const SendView = React.memo(function SendView({
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
-                      className="mt-4 flex justify-center"
+                      className="mt-4 flex flex-col items-center gap-3"
                     >
-                      <div className="bg-white p-4 rounded-2xl shadow-lg">
+                      {/* Cyberpunk Dark Theme QR Card with Click-to-Zoom Lightbox */}
+                      <div
+                        onClick={() => setIsQRLightboxOpen(true)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setIsQRLightboxOpen(true);
+                          }
+                        }}
+                        className="bg-slate-950/90 border border-emerald-500/30 p-5 rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.25)] hover:border-emerald-400/70 hover:shadow-[0_0_40px_rgba(16,185,129,0.4)] transition-all relative group cursor-pointer overflow-hidden"
+                        title="Büyütmek için tıklayın (Lightbox)"
+                        aria-label="QR Kodu Büyüt (Lightbox)"
+                      >
+                        {/* Cyberpunk HUD Corner Accents */}
+                        <div className="absolute top-2 left-2 w-3 h-3 border-t-2 border-l-2 border-emerald-500/80 group-hover:border-emerald-400 transition-colors" />
+                        <div className="absolute top-2 right-2 w-3 h-3 border-t-2 border-r-2 border-emerald-500/80 group-hover:border-emerald-400 transition-colors" />
+                        <div className="absolute bottom-2 left-2 w-3 h-3 border-b-2 border-l-2 border-emerald-500/80 group-hover:border-emerald-400 transition-colors" />
+                        <div className="absolute bottom-2 right-2 w-3 h-3 border-b-2 border-r-2 border-emerald-500/80 group-hover:border-emerald-400 transition-colors" />
+
+                        {/* Hover Overlay Hint */}
+                        <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-2 text-emerald-400 font-mono text-xs font-bold z-10">
+                          <Maximize2 className="w-6 h-6 animate-bounce" />
+                          <span>🔍 Büyüt (Lightbox)</span>
+                        </div>
+
+                        {/* High Error Tolerance Cyberpunk QR Code */}
                         <QRCodeCanvas
-                          value={`${window.location.origin}${
-                            window.location.pathname
-                          }?room=${encodeURIComponent(shareCode)}`}
+                          id="mephistovault-qr-canvas"
+                          value={`${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`}
                           size={240}
-                          bgColor="#ffffff"
-                          fgColor="#0f172a"
-                          level="M"
+                          bgColor="#050811"
+                          fgColor="#10b981"
+                          level="H"
+                          marginSize={2}
                         />
+                      </div>
+
+                      {/* Cyberpunk HUD Subtext */}
+                      <div className="flex items-center gap-2 text-[11px] font-mono text-emerald-400/90">
+                        <Maximize2 className="w-3.5 h-3.5" />
+                        <span>Büyütmek için tıklayın • Yüksek Hata Toleransı (H)</span>
+                      </div>
+
+                      {/* Direct Share Buttons */}
+                      <div className="flex flex-wrap items-center justify-center gap-2 max-w-xs w-full pt-1">
+                        {typeof navigator !== 'undefined' && 'share' in navigator && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const shareUrl = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`;
+                              try {
+                                await navigator.share({
+                                  title: 'MephistoVault',
+                                  text: '🔐 MephistoVault ile şifreli dosya aktarımı bağlantısı:',
+                                  url: shareUrl,
+                                });
+                              } catch (err: unknown) {
+                                if ((err as Error).name !== 'AbortError') {
+                                  console.error('Share error:', err);
+                                }
+                              }
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 rounded-xl text-xs font-bold text-emerald-300 transition-colors cursor-pointer"
+                            title="Web Share API ile Paylaş"
+                            aria-label="Web Share API ile Paylaş"
+                          >
+                            <Share2 className="w-3.5 h-3.5" /> Direct Paylaş
+                          </button>
+                        )}
+
+                        <a
+                          href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
+                            `🔐 MephistoVault ile şifreli dosya aktarımı bağlantısı:\n${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 px-3 py-2 bg-green-600/20 hover:bg-green-600/30 border border-green-500/40 rounded-xl text-xs font-bold text-green-400 transition-colors cursor-pointer"
+                          title="WhatsApp ile Paylaş"
+                          aria-label="WhatsApp ile Paylaş"
+                        >
+                          <Send className="w-3.5 h-3.5 text-green-400" /> WhatsApp
+                        </a>
+
+                        <a
+                          href={`https://t.me/share/url?url=${encodeURIComponent(
+                            `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`
+                          )}&text=${encodeURIComponent('🔐 MephistoVault ile şifreli dosya aktarımı bağlantısı:')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 px-3 py-2 bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 rounded-xl text-xs font-bold text-sky-300 transition-colors cursor-pointer"
+                          title="Telegram ile Paylaş"
+                          aria-label="Telegram ile Paylaş"
+                        >
+                          <Send className="w-3.5 h-3.5 text-sky-300" /> Telegram
+                        </a>
+
+                        <a
+                          href={`mailto:?subject=${encodeURIComponent('MephistoVault Şifreli Dosya Bağlantısı')}&body=${encodeURIComponent(
+                            `🔐 MephistoVault ile şifreli dosya aktarımı bağlantısı:\n\n${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`
+                          )}`}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 rounded-xl text-xs font-bold text-purple-300 transition-colors cursor-pointer"
+                          title="E-posta ile Paylaş"
+                          aria-label="E-posta ile Paylaş"
+                        >
+                          <Mail className="w-3.5 h-3.5 text-purple-300" /> E-posta
+                        </a>
                       </div>
                     </motion.div>
                   )}
@@ -585,6 +698,96 @@ export const SendView = React.memo(function SendView({
           </div>
         )}
       </div>
+
+      {/* QR Code Lightbox / Zoom Modal */}
+      <AnimatePresence>
+        {isQRLightboxOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsQRLightboxOpen(false)}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+            role="dialog"
+            aria-modal="true"
+            aria-label="QR Code Lightbox Modal"
+          >
+            <motion.div
+              initial={{ scale: 0.85, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.85, opacity: 0, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative bg-slate-950/95 border border-emerald-500/40 p-6 md:p-8 rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.35)] max-w-md w-full text-center overflow-hidden"
+            >
+              {/* Cyberpunk Decorative Corners */}
+              <div className="absolute top-3 left-3 w-4 h-4 border-t-2 border-l-2 border-emerald-500" />
+              <div className="absolute top-3 right-3 w-4 h-4 border-t-2 border-r-2 border-emerald-500" />
+              <div className="absolute bottom-3 left-3 w-4 h-4 border-b-2 border-l-2 border-emerald-500" />
+              <div className="absolute bottom-3 right-3 w-4 h-4 border-b-2 border-r-2 border-emerald-500" />
+
+              {/* Modal Header */}
+              <div className="flex items-center justify-between mb-5 border-b border-emerald-500/20 pb-3">
+                <div className="flex items-center gap-2 text-emerald-400 font-mono font-bold text-sm">
+                  <Maximize2 className="w-4 h-4" />
+                  <span>CYBERPUNK QR LIGHTBOX</span>
+                </div>
+                <button
+                  onClick={() => setIsQRLightboxOpen(false)}
+                  className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  aria-label="Close modal"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Large High-Res QR Display */}
+              <div className="bg-[#050811] border border-emerald-500/40 p-6 rounded-2xl flex justify-center mb-6 shadow-[0_0_30px_rgba(16,185,129,0.2)] relative group">
+                <QRCodeCanvas
+                  id="mephistovault-qr-lightbox-canvas"
+                  value={`${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`}
+                  size={280}
+                  bgColor="#050811"
+                  fgColor="#10b981"
+                  level="H"
+                  marginSize={2}
+                />
+              </div>
+
+              {/* Room Code Bar */}
+              <div className="mb-6 bg-black/60 border border-emerald-500/30 p-3.5 rounded-2xl flex items-center justify-between gap-3">
+                <span className="font-mono text-xl md:text-2xl font-black text-emerald-400 tracking-wider">
+                  {shareCode}
+                </span>
+                <button
+                  onClick={onCopy}
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 rounded-xl text-xs font-bold text-emerald-300 cursor-pointer transition-all"
+                >
+                  {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                  <span>{copied ? 'Kopyalandı' : 'Kopyala'}</span>
+                </button>
+              </div>
+
+              {/* Modal Action Buttons */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    onDownloadQR();
+                  }}
+                  className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] flex items-center justify-center gap-2 text-sm cursor-pointer"
+                >
+                  <Download className="w-4 h-4" /> HD PNG (1024x1024)
+                </button>
+                <button
+                  onClick={() => setIsQRLightboxOpen(false)}
+                  className="px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white font-bold rounded-xl text-sm transition-colors cursor-pointer"
+                >
+                  Kapat
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 });

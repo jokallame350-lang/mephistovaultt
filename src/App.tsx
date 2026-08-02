@@ -124,18 +124,39 @@ export function App() {
     }, [peer]),
   );
 
-  // Auto-connect room from URL param (?room=abc-xyz%231234) on mount
+  // Auto-connect room from URL query (?room=CODE) or hash (#CODE) on mount
   useEffect(() => {
+    let roomCode: string | null = null;
+
+    // 1. Parse query parameter ?room=CODE
     const params = new URLSearchParams(window.location.search);
-    const roomCode = params.get('room');
+    const queryRoom = params.get('room');
+    if (queryRoom && queryRoom.trim()) {
+      roomCode = queryRoom.trim();
+    }
+
+    // 2. Parse hash #CODE (or #room=CODE or #/CODE) if query param is empty
+    if (!roomCode && window.location.hash && window.location.hash.length > 1) {
+      const rawHash = decodeURIComponent(window.location.hash.substring(1)).trim();
+      if (rawHash) {
+        if (rawHash.startsWith('room=')) {
+          roomCode = rawHash.replace(/^room=/, '');
+        } else if (rawHash.startsWith('/')) {
+          roomCode = rawHash.replace(/^\//, '');
+        } else {
+          roomCode = rawHash;
+        }
+      }
+    }
+
     if (roomCode) {
-      // Clean URL without reload
+      // Clean URL (search params & hash) without triggering a page reload
       window.history.replaceState({}, '', window.location.pathname);
       peer.setReceiveCode(roomCode);
       peer.setMode('receive');
       // Auto-connect after a short delay
       setTimeout(() => {
-        peer.connectAsReceiver(roomCode);
+        peer.connectAsReceiver(roomCode!);
       }, 300);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

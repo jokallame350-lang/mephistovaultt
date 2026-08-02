@@ -5,6 +5,7 @@ import {
   Download,
   X,
   Camera,
+  CameraOff,
   Shield,
   QrCode,
   File as FileIcon,
@@ -14,14 +15,17 @@ import {
   Eye,
   Folder,
   Play,
+  Pause,
   Radio,
   Check,
   AlertTriangle,
   Mic,
   Database,
+  RefreshCw,
+  Keyboard,
 } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
-import { formatBytes, saveFile } from '../lib/utils';
+import { formatBytes, saveFile, parseRoomCode } from '../lib/utils';
 import { DANGEROUS_EXTENSIONS } from '../lib/constants';
 import { inspectFileSafety } from '../lib/sandboxInspector';
 import { saveToMemoryVault } from '../lib/memoryVault';
@@ -128,12 +132,76 @@ export const ReceiveView = React.memo(function ReceiveView({
   t,
 }: ReceiveViewProps) {
   const isScanningRef = React.useRef(false);
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const [cameraError, setCameraError] = React.useState<{
+    type: 'permission' | 'not_found' | 'occupied' | 'unknown';
+    message: string;
+  } | null>(null);
+  const [isCameraPaused, setIsCameraPaused] = React.useState(false);
+  const [isInputHighlighted, setIsInputHighlighted] = React.useState(false);
 
   React.useEffect(() => {
     if (showQRScanner) {
       isScanningRef.current = false;
+      setCameraError(null);
+      setIsCameraPaused(false);
     }
   }, [showQRScanner]);
+
+  const handleScannerError = React.useCallback((error: unknown) => {
+    const errName = (error as { name?: string })?.name || '';
+    const errMsg = (error as { message?: string })?.message || String(error || '');
+
+    let type: 'permission' | 'not_found' | 'occupied' | 'unknown' = 'unknown';
+    let message = 'Kamera erişiminde sorun oluştu.';
+
+    if (
+      errName === 'NotAllowedError' ||
+      errName === 'PermissionDeniedError' ||
+      /permission|denied|not allowed|allowed/i.test(errMsg)
+    ) {
+      type = 'permission';
+      message = 'Kamera İzni Reddedildi: Tarayıcı ayarlarınızdan kamera erişimine izin verin veya oda kodunu manuel girin.';
+    } else if (
+      errName === 'NotFoundError' ||
+      errName === 'DevicesNotFoundError' ||
+      /not found|no camera|no media|device/i.test(errMsg)
+    ) {
+      type = 'not_found';
+      message = 'Kamera Bulunamadı: Cihazınızda aktif veya uyumlu bir kamera tespit edilemedi.';
+    } else if (
+      errName === 'NotReadableError' ||
+      errName === 'TrackStartError' ||
+      /in use|readable|start/i.test(errMsg)
+    ) {
+      type = 'occupied';
+      message = 'Kamera Kullanımda: Kamera başka bir uygulama veya sekme tarafından kullanılıyor olabilir.';
+    } else {
+      message = `Kamera Hatası: ${errMsg || 'Kamera görüntüsü alınamadı.'}`;
+    }
+
+    setCameraError({ type, message });
+  }, []);
+
+  const handleManualInputRedirect = React.useCallback(() => {
+    setShowQRScanner(false);
+    setCameraError(null);
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        inputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      setIsInputHighlighted(true);
+      setTimeout(() => setIsInputHighlighted(false), 2000);
+    }, 100);
+  }, [setShowQRScanner]);
+
+  const handleRetryCamera = React.useCallback(() => {
+    setCameraError(null);
+    setIsCameraPaused(false);
+    isScanningRef.current = false;
+  }, []);
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,11 +254,16 @@ export const ReceiveView = React.memo(function ReceiveView({
                 </label>
                 <div className="relative">
                   <input
+                    ref={inputRef}
                     type="text"
                     value={receiveCode}
                     onChange={(e) => setReceiveCode(e.target.value)}
                     placeholder="vault-xxxx-xxxx"
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-3.5 px-4 text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500 font-mono text-center tracking-wider transition-all"
+                    className={`w-full bg-black/40 border rounded-2xl py-3.5 px-4 text-white placeholder-slate-600 focus:outline-none font-mono text-center tracking-wider transition-all ${
+                      isInputHighlighted
+                        ? 'border-cyan-400 ring-2 ring-cyan-400/50 bg-cyan-950/20'
+                        : 'border-white/10 focus:border-cyan-500'
+                    }`}
                     required
                   />
                   <button
@@ -214,52 +287,138 @@ export const ReceiveView = React.memo(function ReceiveView({
               </button>
             </form>
 
-            {showQRScanner && (
-              <div className="mt-4 border border-cyan-500/30 rounded-2xl overflow-hidden bg-black/80">
-                <div className="p-3 bg-cyan-500/10 flex items-center justify-between border-b border-cyan-500/20">
-                  <div className="flex items-center gap-2 text-cyan-400 text-xs font-bold font-mono">
-                    <Camera className="w-4 h-4 animate-pulse" />
-                    <span>QR Tara (Otomatik Bağlan)</span>
+            <AnimatePresence>
+              {showQRScanner && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mt-4 border border-cyan-500/30 rounded-2xl overflow-hidden bg-black/90 shadow-xl"
+                >
+                  <div className="p-3 bg-cyan-500/10 flex items-center justify-between border-b border-cyan-500/20">
+                    <div className="flex items-center gap-2 text-cyan-400 text-xs font-bold font-mono">
+                      <Camera className={`w-4 h-4 ${!isCameraPaused && !cameraError ? 'animate-pulse' : ''}`} />
+                      <span>QR Tara (Otomatik Bağlan)</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {!cameraError && (
+                        <button
+                          type="button"
+                          onClick={() => setIsCameraPaused(!isCameraPaused)}
+                          className="flex items-center gap-1 text-xs text-slate-300 hover:text-cyan-300 bg-white/5 hover:bg-cyan-500/20 border border-white/10 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                          title={isCameraPaused ? 'Kamerayı Başlat' : 'Kamerayı Duraklat'}
+                          aria-label={isCameraPaused ? 'Kamerayı Başlat' : 'Kamerayı Duraklat'}
+                        >
+                          {isCameraPaused ? (
+                            <>
+                              <Play className="w-3.5 h-3.5 text-green-400" />
+                              <span>Başlat</span>
+                            </>
+                          ) : (
+                            <>
+                              <Pause className="w-3.5 h-3.5 text-amber-400" />
+                              <span>Duraklat</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setShowQRScanner(false)}
+                        className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+                        aria-label="Tarayıcıyı Kapat"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => setShowQRScanner(false)}
-                    className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="w-full bg-black relative">
-                  <Scanner
-                    onScan={(result) => {
-                      if (!result || result.length === 0 || isScanningRef.current) return;
-                      isScanningRef.current = true;
 
-                      const decodedText = result[0].rawValue;
-                      let finalCode = decodedText;
-                      try {
-                        if (decodedText.includes('room=')) {
-                          finalCode = decodeURIComponent(decodedText.split('room=')[1].split('&')[0]);
-                        } else {
-                          const url = new URL(decodedText);
-                          finalCode = url.searchParams.get('room') || decodedText;
-                        }
-                      } catch {
-                        // Plain text fallback
-                      }
-                      setReceiveCode(finalCode);
-                      setShowQRScanner(false);
-                      onConnect(finalCode);
-                    }}
-                    onError={() => {
-                      // Handled silently
-                    }}
-                    formats={['qr_code']}
-                    components={{ zoom: true }}
-                    styles={{ container: { minHeight: 300, background: 'black' } }}
-                  />
-                </div>
-              </div>
-            )}
+                  <div className="w-full bg-black relative min-h-[280px] flex flex-col items-center justify-center">
+                    {cameraError ? (
+                      <div className="p-6 text-center space-y-4 max-w-sm mx-auto">
+                        <div className="w-12 h-12 rounded-full bg-red-500/20 border border-red-500/30 flex items-center justify-center mx-auto text-red-400">
+                          <CameraOff className="w-6 h-6" />
+                        </div>
+                        <div className="space-y-1">
+                          <h3 className="text-red-400 font-bold text-sm">
+                            {cameraError.type === 'permission'
+                              ? 'Kamera İzni Engellendi'
+                              : cameraError.type === 'not_found'
+                              ? 'Kamera Bulunamadı'
+                              : cameraError.type === 'occupied'
+                              ? 'Kamera Meşgul'
+                              : 'Kamera Başlatılamadı'}
+                          </h3>
+                          <p className="text-slate-300 text-xs leading-relaxed">{cameraError.message}</p>
+                        </div>
+
+                        <div className="pt-2 flex flex-col gap-2">
+                          <button
+                            type="button"
+                            onClick={handleManualInputRedirect}
+                            className="w-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 font-bold text-xs py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-cyan-500/10"
+                          >
+                            <Keyboard className="w-4 h-4 text-cyan-400" /> Manuel Kod Girişine Geç
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleRetryCamera}
+                            className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 font-medium text-xs py-2 px-4 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" /> Kamerayı Yeniden Dene
+                          </button>
+                        </div>
+                      </div>
+                    ) : isCameraPaused ? (
+                      <div className="p-8 text-center space-y-3">
+                        <CameraOff className="w-10 h-10 text-slate-500 mx-auto" />
+                        <p className="text-slate-400 text-xs font-mono">Kamera Taraması Duraklatıldı</p>
+                        <button
+                          type="button"
+                          onClick={() => setIsCameraPaused(false)}
+                          className="bg-cyan-500 hover:bg-cyan-400 text-white font-bold text-xs py-2 px-4 rounded-xl transition-all flex items-center gap-2 mx-auto cursor-pointer"
+                        >
+                          <Play className="w-4 h-4" /> Taramayı Devam Ettir
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-full relative">
+                        <Scanner
+                          onScan={(result) => {
+                            if (!result || result.length === 0 || isScanningRef.current) return;
+                            isScanningRef.current = true;
+
+                            const decodedText = result[0].rawValue;
+                            const finalCode = parseRoomCode(decodedText);
+                            if (finalCode) {
+                              setReceiveCode(finalCode);
+                              setShowQRScanner(false);
+                              onConnect(finalCode);
+                            } else {
+                              isScanningRef.current = false;
+                            }
+                          }}
+                          onError={handleScannerError}
+                          formats={['qr_code']}
+                          components={{ zoom: true }}
+                          styles={{ container: { minHeight: 300, background: 'black' } }}
+                        />
+                        <div className="p-3 bg-black/80 border-t border-white/5 flex items-center justify-between text-xs text-slate-400">
+                          <span className="font-mono text-[11px]">QR kodunu kareye hizalayın</span>
+                          <button
+                            type="button"
+                            onClick={handleManualInputRedirect}
+                            className="text-cyan-400 hover:underline flex items-center gap-1 font-mono text-[11px] cursor-pointer"
+                          >
+                            <Keyboard className="w-3 h-3" /> Manuel Kod Gir
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         ) : (
           <div className="flex flex-col items-center py-4">

@@ -75,6 +75,85 @@ export function generateCode(): string {
   }
 }
 
+/**
+ * Cleanly extract room code from raw scanned QR string, URL, query param, or hash fragment.
+ * Supports: room=, ?room=, #hash, full URLs, and direct room codes.
+ */
+export function parseRoomCode(rawInput: string): string {
+  if (!rawInput) return '';
+  let str = rawInput.trim();
+
+  // Decode URI component first if whole string is encoded
+  try {
+    if (str.includes('%')) {
+      const decoded = decodeURIComponent(str);
+      if (decoded.includes('room=')) {
+        str = decoded;
+      }
+    }
+  } catch {
+    // Ignore decoding error
+  }
+
+  // 1. Handle room= param explicitly (whether in query string or URL)
+  if (str.includes('room=')) {
+    const afterRoom = str.split('room=')[1];
+    if (afterRoom) {
+      const paramValue = afterRoom.split('&')[0];
+      try {
+        str = decodeURIComponent(paramValue);
+      } catch {
+        str = paramValue;
+      }
+    }
+  }
+  // 2. Handle URL format (http/https)
+  else if (/^https?:\/\//i.test(str)) {
+    try {
+      const url = new URL(str);
+      const roomParam = url.searchParams.get('room') || url.searchParams.get('code') || url.searchParams.get('id');
+      if (roomParam) {
+        str = roomParam;
+      } else if (url.hash) {
+        const hashContent = url.hash.replace(/^#\/?/, '');
+        if (hashContent.includes('room=')) {
+          str = hashContent.split('room=')[1].split('&')[0];
+        } else if (hashContent.startsWith('room/')) {
+          str = hashContent.replace(/^room\//, '');
+        } else {
+          str = hashContent;
+        }
+      } else if (url.pathname && url.pathname !== '/') {
+        const cleanPath = url.pathname.replace(/^\/(?:room\/)?/, '');
+        if (cleanPath) {
+          str = cleanPath;
+        }
+      }
+    } catch {
+      // Fallback to raw string
+    }
+  }
+  // 3. Handle raw ?room= or # or ? prefixes
+  else {
+    if (str.startsWith('?room=')) {
+      str = str.substring(6).split('&')[0];
+    } else if (str.startsWith('?')) {
+      str = str.substring(1).split('&')[0];
+    } else if (str.startsWith('#')) {
+      str = str.replace(/^#\/?(?:room\/)?/, '');
+    }
+  }
+
+  // Final decode attempt and trim
+  try {
+    str = decodeURIComponent(str);
+  } catch {
+    // preserve as is
+  }
+
+  return str.trim();
+}
+
 // ── Audio Notification ──
 
 export function playTransferSound(): void {
@@ -144,22 +223,138 @@ export async function copyToClipboard(text: string): Promise<boolean> {
   }
 }
 
-// ── QR Download ──
+// ── QR Download (High-Res 1024x1024 PNG with Cyberpunk Theme) ──
 
-export function downloadQRCode(shareCode: string): void {
-  const canvas = document.querySelector('canvas');
-  if (canvas) {
-    const url = canvas.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `mephistovault-qr-${shareCode.split('#')[0]}.png`;
-    document.body.appendChild(a);
-    try {
-      a.click();
-    } finally {
-      if (a.parentNode) {
-        a.parentNode.removeChild(a);
-      }
+export function downloadQRCode(shareCode: string, customCanvas?: HTMLCanvasElement | null): void {
+  const sourceCanvas =
+    customCanvas ||
+    (document.getElementById('mephistovault-qr-lightbox-canvas') as HTMLCanvasElement) ||
+    (document.getElementById('mephistovault-qr-canvas') as HTMLCanvasElement) ||
+    document.querySelector('canvas');
+
+  if (!sourceCanvas) {
+    console.error('QR canvas element not found for download');
+    return;
+  }
+
+  // Create high-res 1024x1024 canvas
+  const size = 1024;
+  const offscreen = document.createElement('canvas');
+  offscreen.width = size;
+  offscreen.height = size;
+  const ctx = offscreen.getContext('2d');
+
+  if (!ctx) return;
+
+  // 1. Cyberpunk Dark Background
+  const gradient = ctx.createLinearGradient(0, 0, size, size);
+  gradient.addColorStop(0, '#050811');
+  gradient.addColorStop(0.5, '#0a0f1d');
+  gradient.addColorStop(1, '#03050a');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+
+  // 2. Cyberpunk Grid Lines
+  ctx.strokeStyle = 'rgba(16, 185, 129, 0.04)';
+  ctx.lineWidth = 1;
+  const step = 32;
+  for (let x = 0; x <= size; x += step) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, size);
+    ctx.stroke();
+  }
+  for (let y = 0; y <= size; y += step) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(size, y);
+    ctx.stroke();
+  }
+
+  // 3. Glowing Cyberpunk Outer Frame
+  ctx.strokeStyle = 'rgba(16, 185, 129, 0.6)';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(36, 36, size - 72, size - 72);
+
+  // Inner subtle accent frame
+  ctx.strokeStyle = 'rgba(16, 185, 129, 0.15)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(48, 48, size - 96, size - 96);
+
+  // 4. Futuristic HUD Corner Brackets
+  ctx.fillStyle = '#10b981';
+  const bracketLen = 48;
+  const bracketThick = 8;
+
+  // Top-Left
+  ctx.fillRect(28, 28, bracketLen, bracketThick);
+  ctx.fillRect(28, 28, bracketThick, bracketLen);
+  // Top-Right
+  ctx.fillRect(size - 28 - bracketLen, 28, bracketLen, bracketThick);
+  ctx.fillRect(size - 28 - bracketThick, 28, bracketThick, bracketLen);
+  // Bottom-Left
+  ctx.fillRect(28, size - 28 - bracketThick, bracketLen, bracketThick);
+  ctx.fillRect(28, size - 28 - bracketLen, bracketThick, bracketLen);
+  // Bottom-Right
+  ctx.fillRect(size - 28 - bracketLen, size - 28 - bracketThick, bracketLen, bracketThick);
+  ctx.fillRect(size - 28 - bracketThick, size - 28 - bracketLen, bracketThick, bracketLen);
+
+  // 5. Header Branding
+  ctx.fillStyle = '#10b981';
+  ctx.font = 'bold 36px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('MEPHISTOVAULT', size / 2, 105);
+
+  ctx.fillStyle = '#64748b';
+  ctx.font = 'bold 18px "Courier New", monospace';
+  ctx.fillText('SECURE P2P ENCRYPTED VAULT • HIGH RES QR', size / 2, 138);
+
+  // 6. QR Code Card Container
+  const qrBoxSize = 650;
+  const qrBoxX = (size - qrBoxSize) / 2;
+  const qrBoxY = 175;
+
+  // Dark background for QR code box
+  ctx.fillStyle = '#050811';
+  ctx.fillRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize);
+  ctx.strokeStyle = '#10b981';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize);
+
+  // Draw source QR canvas onto high-res canvas (with pixel smoothing disabled for ultra-crisp edges)
+  const qrPadding = 25;
+  const qrDrawSize = qrBoxSize - qrPadding * 2;
+  const qrDrawX = qrBoxX + qrPadding;
+  const qrDrawY = qrBoxY + qrPadding;
+
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(sourceCanvas, qrDrawX, qrDrawY, qrDrawSize, qrDrawSize);
+
+  // 7. Room Code Footer Box
+  const footerY = 855;
+  const footerHeight = 80;
+  ctx.fillStyle = 'rgba(5, 8, 17, 0.9)';
+  ctx.fillRect(qrBoxX, footerY, qrBoxSize, footerHeight);
+  ctx.strokeStyle = 'rgba(16, 185, 129, 0.5)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(qrBoxX, footerY, qrBoxSize, footerHeight);
+
+  ctx.fillStyle = '#10b981';
+  ctx.font = 'bold 32px "Courier New", monospace';
+  ctx.fillText(`ROOM: ${shareCode}`, size / 2, footerY + 50);
+
+  // 8. Trigger PNG Download
+  const url = offscreen.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = url;
+  const cleanCode = shareCode ? shareCode.split('#')[0] : 'code';
+  a.download = `mephistovault-qr-${cleanCode}-1024x1024.png`;
+  document.body.appendChild(a);
+  try {
+    a.click();
+  } finally {
+    if (a.parentNode) {
+      a.parentNode.removeChild(a);
     }
   }
 }
