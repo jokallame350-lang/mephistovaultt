@@ -30,6 +30,9 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Only handle standard HTTP/HTTPS requests (ignore file://, chrome-extension://, etc.)
+  if (!event.request.url.startsWith('http')) return;
+
   // Network-first strategy for dynamic content
   event.respondWith(
     fetch(event.request).catch(() => {

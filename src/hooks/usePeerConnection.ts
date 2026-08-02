@@ -237,7 +237,11 @@ export function usePeerConnection({
         setPeerCount(multiConnsRef.current.length);
         if (multiConnsRef.current.length === 0) {
           setIsConnected(false);
-          setErrorStatus(ERRORS.CONN_LOST);
+          if (mode === 'send') {
+            setErrorStatus(null);
+          } else {
+            setErrorStatus(ERRORS.CONN_LOST);
+          }
         }
       });
 
