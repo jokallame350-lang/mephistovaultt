@@ -1,5 +1,8 @@
-// ── Transfer ──
+// ── Transfer & DataChannel ──
 export const CHUNK_SIZE = 256 * 1024;
+export const PIPELINE_WINDOW_SIZE = 32;
+export const BUFFERED_AMOUNT_THRESHOLD = 4 * 1024 * 1024; // 4MB high-water mark
+export const DRAIN_BUFFER_THRESHOLD = 1 * 1024 * 1024; // 1MB low-water mark for backpressure drain
 export const SELF_DESTRUCT_SEC = 300;
 
 export const DANGEROUS_EXTENSIONS = [
@@ -20,6 +23,9 @@ export const ERRORS = {
   PARSE_ERR: 'Data parsing error: ',
   SEND_CHUNK_ERR: 'Failed to send file chunk: ',
   PEER_NOT_FOUND: 'Error: Could not find or connect to that peer. Check the code.',
+  PEER_UNAVAILABLE: 'Oda henüz hazır değil veya kod hatalı. Lütfen oda kodunu kontrol edip tekrar deneyin.',
+  ROOM_CODE_TAKEN: 'Oda kodu zaten kullanımda. Lütfen yeni bir kod oluşturun.',
+  DECRYPTION_ERR: 'Şifre çözme hatası. Şifreleme anahtarı veya veri bozuk.',
   CONN_ERR: 'Connection error',
 } as const;
 
@@ -63,8 +69,9 @@ export const PBKDF2_ITERATIONS = 100_000;
 export const AES_KEY_LENGTH = 256;
 export const IV_LENGTH = 12;
 
-// ── Handshake ──
+// ── Handshake & Connection ──
 export const HANDSHAKE_INTERVAL_MS = 500;
+export const MAX_CONNECT_ATTEMPTS = 5;
 
 // ── Peer ID Prefix ──
 export const PEER_ID_PREFIX = 'mephisto-';

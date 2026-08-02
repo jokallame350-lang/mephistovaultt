@@ -11,8 +11,8 @@ export function useSelfDestruct(
 
   useEffect(() => {
     if (transferProgress >= 100 && isConnected) {
-      setSelfDestructSec(SELF_DESTRUCT_SEC);
-      selfDestructRef.current = setInterval(() => {
+      queueMicrotask(() => setSelfDestructSec(SELF_DESTRUCT_SEC));
+      const interval = setInterval(() => {
         setSelfDestructSec((prev) => {
           if (prev <= 1) {
             if (selfDestructRef.current) {
@@ -25,20 +25,22 @@ export function useSelfDestruct(
           return prev - 1;
         });
       }, 1000);
+
+      selfDestructRef.current = interval;
+
+      return () => {
+        if (selfDestructRef.current) {
+          clearInterval(selfDestructRef.current);
+          selfDestructRef.current = null;
+        }
+      };
     } else {
-      setSelfDestructSec(0);
+      queueMicrotask(() => setSelfDestructSec(0));
       if (selfDestructRef.current) {
         clearInterval(selfDestructRef.current);
         selfDestructRef.current = null;
       }
     }
-
-    return () => {
-      if (selfDestructRef.current) {
-        clearInterval(selfDestructRef.current);
-        selfDestructRef.current = null;
-      }
-    };
   }, [transferProgress, isConnected, onDestruct]);
 
   return selfDestructSec;

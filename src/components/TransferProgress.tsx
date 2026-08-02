@@ -1,3 +1,4 @@
+import React from 'react';
 import AnimatedCounter from './AnimatedCounter';
 
 interface TransferProgressProps {
@@ -8,7 +9,7 @@ interface TransferProgressProps {
   colorClass?: 'emerald' | 'cyan';
 }
 
-export function TransferProgress({
+export const TransferProgress = React.memo(function TransferProgress({
   progress,
   speed,
   eta,
@@ -19,18 +20,27 @@ export function TransferProgress({
   const textClass = isCyan ? 'text-cyan-500' : 'text-emerald-500';
   const gradientClass = isCyan ? 'from-cyan-600 to-cyan-400' : 'from-emerald-600 to-emerald-400';
 
+  const roundedProgress = Math.max(0, Math.min(100, Math.round(progress)));
+
   return (
     <div className="w-full">
       <div className="flex justify-between text-sm mb-2 font-mono">
         <span className={`${textClass} font-bold animate-pulse`}>{label}</span>
         <span className="text-slate-300">
-          <AnimatedCounter value={progress} />
+          <AnimatedCounter value={roundedProgress} />
         </span>
       </div>
-      <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden border border-white/5">
+      <div
+        className="w-full h-3 bg-white/5 rounded-full overflow-hidden border border-white/5"
+        role="progressbar"
+        aria-valuenow={roundedProgress}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={label}
+      >
         <div
           className={`h-full bg-gradient-to-r ${gradientClass} rounded-full transition-all duration-300 ease-out`}
-          style={{ width: `${progress}%` }}
+          style={{ width: `${roundedProgress}%` }}
         />
       </div>
       {(speed || eta) && (
@@ -41,5 +51,6 @@ export function TransferProgress({
       )}
     </div>
   );
-}
+});
+
 export default TransferProgress;

@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, MessageSquare, Lock, Smile, Clipboard, Send, FileText } from 'lucide-react';
+import { Loader2, MessageSquare, Lock, Smile, Clipboard, Send, FileText, Check } from 'lucide-react';
 import { EMOJIS } from '../lib/constants';
 import type { ChatMessage } from '../types';
 
@@ -18,7 +18,7 @@ interface GhostChatProps {
   t: (key: string) => string;
 }
 
-export function GhostChat({
+export const GhostChat = React.memo(function GhostChat({
   isConnected,
   chatMessages,
   chatInput,
@@ -31,8 +31,40 @@ export function GhostChat({
   chatEndRef,
   t,
 }: GhostChatProps) {
-  const [activeTab, setActiveTab] = React.useState<'chat' | 'notepad'>('chat');
-  const [notepadText, setNotepadText] = React.useState('');
+  const [activeTab, setActiveTab] = useState<'chat' | 'notepad'>('chat');
+  const [notepadText, setNotepadText] = useState('');
+  const [copiedToast, setCopiedToast] = useState(false);
+
+  const emojiContainerRef = useRef<HTMLDivElement>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        showEmojiPicker &&
+        emojiContainerRef.current &&
+        !emojiContainerRef.current.contains(event.target as Node) &&
+        emojiButtonRef.current &&
+        !emojiButtonRef.current.contains(event.target as Node)
+      ) {
+        setShowEmojiPicker(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showEmojiPicker, setShowEmojiPicker]);
+
+  const handleCopyNotepad = async () => {
+    if (!notepadText.trim()) return;
+    try {
+      await navigator.clipboard.writeText(notepadText);
+      setCopiedToast(true);
+      setTimeout(() => setCopiedToast(false), 2000);
+    } catch {
+      alert('Panoya kopyalanamadı.');
+    }
+  };
 
   return (
     <motion.div
@@ -62,6 +94,8 @@ export function GhostChat({
                 ? 'bg-purple-600 text-white shadow-md'
                 : 'text-slate-400 hover:text-white'
             }`}
+            aria-selected={activeTab === 'chat'}
+            role="tab"
           >
             <MessageSquare className="w-3.5 h-3.5" /> {t('ghostChat')}
           </button>
@@ -73,6 +107,8 @@ export function GhostChat({
                 ? 'bg-purple-600 text-white shadow-md'
                 : 'text-slate-400 hover:text-white'
             }`}
+            aria-selected={activeTab === 'notepad'}
+            role="tab"
           >
             <FileText className="w-3.5 h-3.5" /> 📝 Canlı Not & Kod Düzenleyici
           </button>
@@ -107,68 +143,72 @@ export function GhostChat({
           </div>
 
           <form onSubmit={onSendMessage} className="p-3 bg-black/40 border-t border-white/5 flex gap-2 relative">
-        {/* Emoji Picker */}
-        <AnimatePresence>
-          {showEmojiPicker && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              className="absolute bottom-full left-3 mb-2 bg-black/90 border border-white/10 rounded-xl p-2 flex gap-1 flex-wrap max-w-[200px] shadow-xl"
-              role="listbox"
-              aria-label="Emoji selector"
-            >
-              {EMOJIS.map((e) => (
-                <button
-                  key={e}
-                  type="button"
-                  onClick={() => onSendEmoji(e)}
-                  className="text-xl p-1.5 hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
-                  role="option"
-                  aria-selected="false"
+            {/* Emoji Picker */}
+            <AnimatePresence>
+              {showEmojiPicker && (
+                <motion.div
+                  ref={emojiContainerRef}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="absolute bottom-full left-3 mb-2 bg-black/90 border border-white/10 rounded-xl p-2 flex gap-1 flex-wrap max-w-[200px] shadow-xl z-30"
+                  role="listbox"
+                  aria-label="Emoji selector"
                 >
-                  {e}
-                </button>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-        <button
-          type="button"
-          onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-          className="text-slate-400 hover:text-purple-400 p-2 rounded-lg transition-colors shrink-0 cursor-pointer"
-          title="Emoji"
-          aria-label="Toggle emoji picker"
-        >
-          <Smile className="w-4 h-4" />
-        </button>
-        <button
-          type="button"
-          onClick={onSendClipboard}
-          className="text-slate-400 hover:text-purple-400 p-2 rounded-lg transition-colors shrink-0 cursor-pointer"
-          title="Paste from Clipboard"
-          aria-label="Paste text from clipboard and send"
-        >
-          <Clipboard className="w-4 h-4" />
-        </button>
-        <input
-          type="text"
-          value={chatInput}
-          onChange={(e) => setChatInput(e.target.value)}
-          placeholder={t('chatPlaceholder')}
-          className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50 transition-colors"
-          maxLength={200}
-          aria-label="Type secure message"
-        />
-        <button
-          type="submit"
-          disabled={!chatInput.trim()}
-          className="bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white p-2 rounded-lg transition-colors flex items-center justify-center w-10 shrink-0 cursor-pointer"
-          aria-label="Send Message"
-        >
-          <Send className="w-4 h-4" />
-        </button>
-        </form>
+                  {EMOJIS.map((e) => (
+                    <button
+                      key={e}
+                      type="button"
+                      onClick={() => onSendEmoji(e)}
+                      className="text-xl p-1.5 hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+                      role="option"
+                      aria-selected="false"
+                      aria-label={`Send emoji ${e}`}
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <button
+              ref={emojiButtonRef}
+              type="button"
+              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+              className="text-slate-400 hover:text-purple-400 p-2 rounded-lg transition-colors shrink-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+              title="Emoji"
+              aria-label="Toggle emoji picker"
+              aria-expanded={showEmojiPicker}
+            >
+              <Smile className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onSendClipboard}
+              className="text-slate-400 hover:text-purple-400 p-2 rounded-lg transition-colors shrink-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+              title="Paste from Clipboard"
+              aria-label="Paste text from clipboard and send"
+            >
+              <Clipboard className="w-4 h-4" />
+            </button>
+            <input
+              type="text"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder={t('chatPlaceholder')}
+              className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50 transition-colors"
+              maxLength={200}
+              aria-label="Type secure message"
+            />
+            <button
+              type="submit"
+              disabled={!chatInput.trim()}
+              className="bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white p-2 rounded-lg transition-colors flex items-center justify-center w-10 shrink-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-400"
+              aria-label="Send Message"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </form>
         </>
       ) : (
         <div className="p-4 flex flex-col gap-3">
@@ -176,13 +216,16 @@ export function GhostChat({
             <span>📝 Canlı Şifreli Not Defteri (Cihazlar Ayrılınca Yok Olur)</span>
             <button
               type="button"
-              onClick={() => {
-                onSendMessage({ preventDefault: () => {} } as React.FormEvent);
-                alert('Not içeriği panoya gönderildi!');
-              }}
-              className="text-xs text-purple-400 hover:text-purple-200 underline cursor-pointer"
+              onClick={handleCopyNotepad}
+              disabled={!notepadText.trim()}
+              className="text-xs text-purple-400 hover:text-purple-200 disabled:opacity-50 flex items-center gap-1 cursor-pointer focus:outline-none"
+              aria-label="Copy notepad content to clipboard"
             >
-              Panoya Gönder
+              {copiedToast ? (
+                <span className="text-emerald-400 flex items-center gap-1"><Check className="w-3 h-3" /> Kopyalandı!</span>
+              ) : (
+                <span>Panoya Kopyala</span>
+              )}
             </button>
           </div>
           <textarea
@@ -190,10 +233,12 @@ export function GhostChat({
             onChange={(e) => setNotepadText(e.target.value)}
             placeholder="Buraya anlık ortak notlar, şifreler veya kod parçaları yazabilirsiniz. Cihazlar kapatılınca tüm veriler hafızadan imha edilir..."
             className="w-full h-44 bg-black/60 border border-purple-500/20 rounded-xl p-3 text-xs font-mono text-purple-100 focus:outline-none focus:border-purple-500/50 resize-none custom-scrollbar"
+            aria-label="Encrypted ephemeral notepad"
           />
         </div>
       )}
     </motion.div>
   );
-}
+});
+
 export default GhostChat;

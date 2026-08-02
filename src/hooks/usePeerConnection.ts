@@ -1,7 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Peer } from 'peerjs';
-import type { DataConnection } from 'peerjs';
-import { CHUNK_SIZE, ERRORS, PEER_CONFIG } from '../lib/constants';
+import type { DataConnection, MediaConnection } from 'peerjs';
+import {
+  CHUNK_SIZE,
+  PIPELINE_WINDOW_SIZE,
+  BUFFERED_AMOUNT_THRESHOLD,
+  DRAIN_BUFFER_THRESHOLD,
+  ERRORS,
+  PEER_CONFIG,
+  HANDSHAKE_INTERVAL_MS,
+  MAX_CONNECT_ATTEMPTS,
+  PEER_ID_PREFIX,
+} from '../lib/constants';
 import { deriveKey, encryptChunk, decryptChunk, clearKeyCache } from '../lib/encryption';
 import { formatETA, formatSpeed } from '../lib/utils';
 import type { FileMeta, CompletedFile, PeerMessage, PeerDataConnectionExt, PeerCustomError } from '../types';
@@ -40,26 +50,34 @@ export function usePeerConnection({
   const connRef = useRef<DataConnection | null>(null);
   const multiConnsRef = useRef<DataConnection[]>([]);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const activeCallRef = useRef<MediaConnection | null>(null);
   const fileMetaRef = useRef<FileMeta | null>(null);
   const receivedChunksRef = useRef<ArrayBuffer[]>([]);
   const receivedBytesRef = useRef(0);
   const requestedOffsetRef = useRef(0);
   const lastSpeedCalcRef = useRef({ time: 0, bytes: 0 });
   const connTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const handshakeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cryptoKeyRef = useRef<CryptoKey | null>(null);
+  const transferCompletedRef = useRef(false);
 
   const calculateSpeedAndETA = useCallback((bytesCurrent: number, bytesTotal: number) => {
     const now = Date.now();
     const elapsed = now - lastSpeedCalcRef.current.time;
 
-    if (elapsed >= 1000 || bytesCurrent === bytesTotal) {
+    if (elapsed >= 1000 || bytesCurrent >= bytesTotal) {
       const bytesDiff = bytesCurrent - lastSpeedCalcRef.current.bytes;
       if (elapsed > 0 && lastSpeedCalcRef.current.time !== 0) {
-        const bps = (bytesDiff / elapsed) * 1000;
+        const bps = (Math.max(0, bytesDiff) / elapsed) * 1000;
         setTransferSpeed(formatSpeed(bps));
-        if (bps > 0) setTransferETA(formatETA((bytesTotal - bytesCurrent) / bps));
-        else setTransferETA('--:--');
+        if (bps > 0 && bytesCurrent < bytesTotal) {
+          setTransferETA(formatETA((bytesTotal - bytesCurrent) / bps));
+        } else {
+          setTransferETA('--:--');
+        }
       }
-      if (bytesCurrent === bytesTotal) {
+      if (bytesCurrent >= bytesTotal) {
         setTransferSpeed(null);
         setTransferETA(null);
       }
@@ -67,30 +85,44 @@ export function usePeerConnection({
     }
   }, []);
 
+  const stopVoiceTalkie = useCallback(() => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => track.stop());
+      localStreamRef.current = null;
+    }
+    if (activeCallRef.current) {
+      try {
+        activeCallRef.current.close();
+      } catch {
+        // ignore
+      }
+      activeCallRef.current = null;
+    }
+    const audioEl = document.getElementById('phantom-audio') as HTMLAudioElement;
+    if (audioEl) {
+      audioEl.pause();
+      audioEl.srcObject = null;
+      audioEl.remove();
+    }
+    setIsVoiceActive(false);
+  }, []);
+
   const resetConnection = useCallback(() => {
     clearKeyCache();
+    cryptoKeyRef.current = null;
+    transferCompletedRef.current = false;
+
+    stopVoiceTalkie();
+
     if (connRef.current) {
-      connRef.current.close();
+      try {
+        connRef.current.close();
+      } catch {
+        // ignore
+      }
       connRef.current = null;
     }
-    if (peerRef.current) {
-      peerRef.current.destroy();
-      peerRef.current = null;
-    }
-    setIsConnected(false);
-    setTransferProgress(-1);
-    setFileMeta(null);
-    fileMetaRef.current = null;
-    receivedChunksRef.current = [];
-    receivedBytesRef.current = 0;
-    setCompletedFile(null);
-    clearChatMessages();
-    setErrorStatus(null);
-    setConnTime(0);
-    setPeerCount(0);
-    setTransferSpeed(null);
-    setTransferETA(null);
-    lastSpeedCalcRef.current = { time: 0, bytes: 0 };
+
     multiConnsRef.current.forEach((c) => {
       try {
         c.close();
@@ -99,45 +131,79 @@ export function usePeerConnection({
       }
     });
     multiConnsRef.current = [];
+
+    if (peerRef.current) {
+      try {
+        peerRef.current.destroy();
+      } catch {
+        // ignore
+      }
+      peerRef.current = null;
+    }
+
     if (connTimerRef.current) {
       clearInterval(connTimerRef.current);
       connTimerRef.current = null;
     }
-  }, [clearChatMessages]);
+    if (handshakeIntervalRef.current) {
+      clearInterval(handshakeIntervalRef.current);
+      handshakeIntervalRef.current = null;
+    }
+    if (connectTimeoutRef.current) {
+      clearTimeout(connectTimeoutRef.current);
+      connectTimeoutRef.current = null;
+    }
+
+    setIsConnected(false);
+    setTransferProgress(-1);
+    setFileMeta(null);
+    fileMetaRef.current = null;
+    receivedChunksRef.current = [];
+    receivedBytesRef.current = 0;
+    requestedOffsetRef.current = 0;
+    setCompletedFile(null);
+    clearChatMessages();
+    setErrorStatus(null);
+    setConnTime(0);
+    setPeerCount(0);
+    setTransferSpeed(null);
+    setTransferETA(null);
+    lastSpeedCalcRef.current = { time: 0, bytes: 0 };
+  }, [clearChatMessages, stopVoiceTalkie]);
+
+  const attachMediaStream = useCallback((remoteStream: MediaStream) => {
+    let audioEl = document.getElementById('phantom-audio') as HTMLAudioElement;
+    if (!audioEl) {
+      audioEl = document.createElement('audio');
+      audioEl.id = 'phantom-audio';
+      audioEl.autoplay = true;
+      document.body.appendChild(audioEl);
+    }
+    audioEl.srcObject = remoteStream;
+    audioEl.play().catch(() => {});
+  }, []);
 
   const toggleVoiceTalkie = useCallback(async () => {
     if (isVoiceActive) {
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => track.stop());
-        localStreamRef.current = null;
-      }
-      setIsVoiceActive(false);
+      stopVoiceTalkie();
     } else {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
         localStreamRef.current = stream;
         setIsVoiceActive(true);
 
-        if (peerRef.current && connRef.current) {
+        if (peerRef.current && connRef.current?.open) {
           const call = peerRef.current.call(connRef.current.peer, stream);
-          call.on('stream', (remoteStream) => {
-            let audioEl = document.getElementById('phantom-audio') as HTMLAudioElement;
-            if (!audioEl) {
-              audioEl = document.createElement('audio');
-              audioEl.id = 'phantom-audio';
-              audioEl.autoplay = true;
-              document.body.appendChild(audioEl);
-            }
-            audioEl.srcObject = remoteStream;
-            audioEl.play().catch(() => {});
-          });
+          activeCallRef.current = call;
+          call.on('stream', attachMediaStream);
         }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
         alert('Mikrofon erişim izni verilmedi: ' + message);
+        stopVoiceTalkie();
       }
     }
-  }, [isVoiceActive]);
+  }, [isVoiceActive, stopVoiceTalkie, attachMediaStream]);
 
   const handleBurnOnDownload = useCallback(() => {
     if (expirationSec === 0) {
@@ -150,6 +216,7 @@ export function usePeerConnection({
 
   const finalizeDownload = useCallback((name: string, type: string) => {
     const blob = new Blob(receivedChunksRef.current, { type: type || 'application/octet-stream' });
+    receivedChunksRef.current = []; // Free ArrayBuffers memory
     setCompletedFile({ blob, name, type });
     setTransferProgress(100);
     onTransferComplete();
@@ -160,21 +227,28 @@ export function usePeerConnection({
       try {
         const file = fileToShareRef.current;
         const conn = targetConn || connRef.current;
-        if (!file || !conn) return;
+        if (!file || !conn || !conn.open) return;
 
         const end = Math.min(offset + CHUNK_SIZE, file.size);
         const slice = file.slice(offset, end);
         const buffer = await slice.arrayBuffer();
 
-        // AES-256-GCM Encryption
-        const key = await deriveKey(shareCode);
-        const encrypted = await encryptChunk(buffer, key);
-
-        // WebRTC DataChannel backpressure throttling to prevent packet drop (4MB buffer threshold)
-        const dataChannel = (conn as PeerDataConnectionExt)._dc || (conn as PeerDataConnectionExt).dataChannel;
-        if (dataChannel && dataChannel.bufferedAmount > 4 * 1024 * 1024) {
-          await new Promise((resolve) => setTimeout(resolve, 5));
+        // AES-256-GCM Key derivation (memoized)
+        if (!cryptoKeyRef.current && shareCode) {
+          cryptoKeyRef.current = await deriveKey(shareCode);
         }
+        if (!cryptoKeyRef.current) return;
+
+        const encrypted = await encryptChunk(buffer, cryptoKeyRef.current);
+
+        // WebRTC DataChannel backpressure throttling with drain loop
+        const dataChannel = (conn as PeerDataConnectionExt)._dc || (conn as PeerDataConnectionExt).dataChannel;
+        while (conn.open && dataChannel && dataChannel.bufferedAmount > BUFFERED_AMOUNT_THRESHOLD) {
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          if (dataChannel.bufferedAmount <= DRAIN_BUFFER_THRESHOLD) break;
+        }
+
+        if (!conn.open) return;
 
         conn.send({
           type: 'chunk',
@@ -199,10 +273,21 @@ export function usePeerConnection({
     resetConnection();
     setErrorStatus(null);
 
-    const cleanCode = shareCode.split('#')[0].replace(/-/g, '').toLowerCase();
-    const peer = new Peer(`mephisto-${cleanCode}`, PEER_CONFIG);
+    const cleanCode = shareCode.split('#')[0].replace(/[^a-z0-9]/g, '').toLowerCase();
+    const peerId = `${PEER_ID_PREFIX}${cleanCode}`;
+    const peer = new Peer(peerId, PEER_CONFIG);
 
     peer.on('open', () => {});
+
+    peer.on('call', (call) => {
+      activeCallRef.current = call;
+      if (localStreamRef.current) {
+        call.answer(localStreamRef.current);
+      } else {
+        call.answer();
+      }
+      call.on('stream', attachMediaStream);
+    });
 
     peer.on('connection', (conn) => {
       connRef.current = conn;
@@ -235,11 +320,13 @@ export function usePeerConnection({
       conn.on('close', () => {
         multiConnsRef.current = multiConnsRef.current.filter((c) => c !== conn);
         setPeerCount(multiConnsRef.current.length);
-        if (multiConnsRef.current.length === 0) {
+
+        if (multiConnsRef.current.length > 0) {
+          connRef.current = multiConnsRef.current[multiConnsRef.current.length - 1];
+        } else {
+          connRef.current = null;
           setIsConnected(false);
-          if (mode === 'send') {
-            setErrorStatus(null);
-          } else {
+          if (mode !== 'send') {
             setErrorStatus(ERRORS.CONN_LOST);
           }
         }
@@ -251,12 +338,16 @@ export function usePeerConnection({
       });
     });
 
-    peer.on('error', () => {
-      // Handle peer creation error silently
+    peer.on('error', (err: PeerCustomError) => {
+      if (err.type === 'unavailable-id') {
+        setErrorStatus(ERRORS.ROOM_CODE_TAKEN);
+      } else {
+        setErrorStatus(ERRORS.CONN_ERR + ': ' + err.message);
+      }
     });
 
     peerRef.current = peer;
-  }, [shareCode, resetConnection, sendChunk, fileToShareRef, onChatMessage]);
+  }, [shareCode, resetConnection, sendChunk, fileToShareRef, onChatMessage, attachMediaStream, mode]);
 
   // Auto-init sender room when in send mode and shareCode is ready
   useEffect(() => {
@@ -283,20 +374,29 @@ export function usePeerConnection({
 
       const parts = sanitizedCode.split('#');
       const cleanCode = parts[0].replace(/[^a-z0-9]/g, '');
-      const targetId = `mephisto-${cleanCode}`;
+      const targetId = `${PEER_ID_PREFIX}${cleanCode}`;
 
       const peer = new Peer(PEER_CONFIG);
 
       peer.on('open', () => {
         let attempts = 0;
-        const maxAttempts = 5;
         let connected = false;
+        let activeConnAttempt: DataConnection | null = null;
 
         const tryConnect = () => {
-          if (connected) return;
+          if (connected || attempts >= MAX_CONNECT_ATTEMPTS) return;
           attempts++;
 
+          if (activeConnAttempt) {
+            try {
+              activeConnAttempt.close();
+            } catch {
+              // ignore
+            }
+          }
+
           const conn = peer.connect(targetId, { reliable: true });
+          activeConnAttempt = conn;
           connRef.current = conn;
 
           conn.on('open', () => {
@@ -304,13 +404,26 @@ export function usePeerConnection({
             setIsConnected(true);
             setErrorStatus(null);
 
-            const handshakeInterval = setInterval(() => {
+            if (connectTimeoutRef.current) {
+              clearTimeout(connectTimeoutRef.current);
+              connectTimeoutRef.current = null;
+            }
+
+            // Derive key once on connection initialization
+            deriveKey(sanitizedCode).then((key) => {
+              cryptoKeyRef.current = key;
+            });
+
+            handshakeIntervalRef.current = setInterval(() => {
               if (fileMetaRef.current || !conn.open) {
-                clearInterval(handshakeInterval);
+                if (handshakeIntervalRef.current) {
+                  clearInterval(handshakeIntervalRef.current);
+                  handshakeIntervalRef.current = null;
+                }
                 return;
               }
               conn.send({ type: 'request-metadata' });
-            }, 500);
+            }, HANDSHAKE_INTERVAL_MS);
           });
 
           conn.on('data', async (data: unknown) => {
@@ -328,12 +441,16 @@ export function usePeerConnection({
                   receivedChunksRef.current = [];
                   receivedBytesRef.current = 0;
                   requestedOffsetRef.current = 0;
+                  transferCompletedRef.current = false;
                   setTransferProgress(0);
                   lastSpeedCalcRef.current = { time: Date.now(), bytes: 0 };
 
-                  // Pipeline: Request initial window of 32 parallel chunks (8MB in flight)
-                  const WINDOW_SIZE = 32;
-                  for (let i = 0; i < WINDOW_SIZE; i++) {
+                  if (!cryptoKeyRef.current) {
+                    cryptoKeyRef.current = await deriveKey(sanitizedCode);
+                  }
+
+                  // Pipeline: Request initial window of parallel chunks
+                  for (let i = 0; i < PIPELINE_WINDOW_SIZE; i++) {
                     if (requestedOffsetRef.current < meta.size) {
                       conn.send({ type: 'request-chunk', offset: requestedOffsetRef.current });
                       requestedOffsetRef.current += CHUNK_SIZE;
@@ -344,17 +461,22 @@ export function usePeerConnection({
                 const buffer = typedData.buffer;
                 if (!buffer) throw new Error('Empty buffer received.');
 
-                // Decrypt using AES-256-GCM
-                const key = await deriveKey(sanitizedCode);
-                const decrypted = await decryptChunk(buffer, key);
+                if (!cryptoKeyRef.current) {
+                  cryptoKeyRef.current = await deriveKey(sanitizedCode);
+                }
 
+                const decrypted = await decryptChunk(buffer, cryptoKeyRef.current);
                 const byteLength = (decrypted as ArrayBuffer).byteLength ?? 0;
 
                 if (byteLength === 0) throw new Error('Received chunk has zero length.');
 
                 const chunkIndex = Math.floor(typedData.offset / CHUNK_SIZE);
-                receivedChunksRef.current[chunkIndex] = decrypted as ArrayBuffer;
-                receivedBytesRef.current += byteLength;
+
+                // Check duplicate chunk receipt to prevent byte miscounting
+                if (!receivedChunksRef.current[chunkIndex]) {
+                  receivedChunksRef.current[chunkIndex] = decrypted as ArrayBuffer;
+                  receivedBytesRef.current += byteLength;
+                }
 
                 const meta = fileMetaRef.current;
                 if (meta) {
@@ -368,7 +490,8 @@ export function usePeerConnection({
 
                   if (receivedBytesRef.current < meta.size) {
                     setTransferProgress(Math.min(99, progress));
-                  } else {
+                  } else if (!transferCompletedRef.current) {
+                    transferCompletedRef.current = true;
                     setTransferProgress(100);
                     finalizeDownload(meta.name, meta.type);
                   }
@@ -388,27 +511,38 @@ export function usePeerConnection({
 
           conn.on('error', (err) => {
             if (err.message && err.message.includes('Negotiation of connection')) return;
-            if (!connected && attempts < maxAttempts) {
-              setTimeout(tryConnect, 1500);
-            } else {
+            if (!connected && attempts < MAX_CONNECT_ATTEMPTS) {
+              connectTimeoutRef.current = setTimeout(tryConnect, 1500);
+            } else if (!connected) {
               setErrorStatus(ERRORS.CONN_ERR + ': ' + err.message);
             }
           });
 
-          // Fallback retry if connection not opened after 2 seconds
-          setTimeout(() => {
-            if (!connected && attempts < maxAttempts) {
+          // Single fallback timer for retry if connection fails to open within 3 seconds
+          if (connectTimeoutRef.current) clearTimeout(connectTimeoutRef.current);
+          connectTimeoutRef.current = setTimeout(() => {
+            if (!connected && attempts < MAX_CONNECT_ATTEMPTS) {
               tryConnect();
             }
-          }, 2000);
+          }, 3000);
         };
 
         tryConnect();
       });
 
+      peer.on('call', (call) => {
+        activeCallRef.current = call;
+        if (localStreamRef.current) {
+          call.answer(localStreamRef.current);
+        } else {
+          call.answer();
+        }
+        call.on('stream', attachMediaStream);
+      });
+
       peer.on('error', (perr: PeerCustomError) => {
         if (perr.type === 'peer-unavailable') {
-          setErrorStatus('Oda henüz hazır değil veya kod hatalı. Lütfen oda kodunu kontrol edip tekrar deneyin.');
+          setErrorStatus(ERRORS.PEER_UNAVAILABLE);
         } else {
           setErrorStatus(ERRORS.PEER_NOT_FOUND);
         }
@@ -417,7 +551,7 @@ export function usePeerConnection({
 
       peerRef.current = peer;
     },
-    [resetConnection, finalizeDownload, calculateSpeedAndETA, onChatMessage],
+    [resetConnection, finalizeDownload, calculateSpeedAndETA, onChatMessage, attachMediaStream],
   );
 
   const broadcastToAll = useCallback(
@@ -457,18 +591,9 @@ export function usePeerConnection({
   // Clean up PeerJS instances on unmount
   useEffect(() => {
     return () => {
-      if (connRef.current) connRef.current.close();
-      if (peerRef.current) peerRef.current.destroy();
-      multiConnsRef.current.forEach((c) => {
-        try {
-          c.close();
-        } catch {
-          // ignore
-        }
-      });
-      if (connTimerRef.current) clearInterval(connTimerRef.current);
+      resetConnection();
     };
-  }, []);
+  }, [resetConnection]);
 
   return {
     mode,

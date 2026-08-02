@@ -6,11 +6,15 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   build: {
+    target: 'es2022',
+    minify: 'esbuild',
     chunkSizeWarningLimit: 1000,
+    cssCodeSplit: true,
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom', 'framer-motion', 'lucide-react'],
+          'react-vendor': ['react', 'react-dom'],
+          'ui-vendor': ['framer-motion', 'lucide-react'],
           jszip: ['jszip'],
           peerjs: ['peerjs'],
           qr: ['qrcode.react', '@yudiel/react-qr-scanner'],

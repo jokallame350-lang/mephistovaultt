@@ -18,9 +18,10 @@ export type LobbyMessage =
   | { type: 'lobby-sync'; devices: Record<string, DeviceInfo> };
 
 export type BroadcastMessage =
-  | { type: 'announce'; id: string; name: string; time: number; code?: string }
+  | { type: 'announce'; id: string; name: string; time: number; code?: string; mode?: AppMode }
   | { type: 'invite'; targetId: string; code: string }
-  | { type: 'lobby-sync'; devices: Record<string, DeviceInfo> };
+  | { type: 'lobby-sync'; devices: Record<string, DeviceInfo> }
+  | { type: 'leave'; id: string };
 
 // ── Device Info ──
 export interface DeviceInfo {
@@ -78,11 +79,11 @@ export interface WebKitEntry {
 }
 
 export interface WebKitFileEntry extends WebKitEntry {
-  file: (successCallback: (file: File) => void) => void;
+  file: (successCallback: (file: File) => void, errorCallback?: (error: Error) => void) => void;
 }
 
 export interface WebKitDirectoryReader {
-  readEntries: (successCallback: (entries: WebKitEntry[]) => void) => void;
+  readEntries: (successCallback: (entries: WebKitEntry[]) => void, errorCallback?: (error: Error) => void) => void;
 }
 
 export interface WebKitDirectoryEntry extends WebKitEntry {

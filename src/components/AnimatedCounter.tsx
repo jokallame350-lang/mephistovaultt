@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { animate } from 'framer-motion';
 
 interface AnimatedCounterProps {
@@ -6,14 +6,20 @@ interface AnimatedCounterProps {
   className?: string;
 }
 
-export function AnimatedCounter({ value, className }: AnimatedCounterProps) {
+export const AnimatedCounter = React.memo(function AnimatedCounter({
+  value,
+  className,
+}: AnimatedCounterProps) {
   const nodeRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     const node = nodeRef.current;
     if (node) {
-      const controls = animate(parseInt(node.textContent || '0'), value, {
-        duration: 0.5,
+      const rawText = node.textContent || '0';
+      const startVal = parseFloat(rawText.replace(/[^0-9.]/g, '')) || 0;
+      const controls = animate(startVal, value, {
+        duration: 0.4,
+        ease: 'easeOut',
         onUpdate(v) {
           node.textContent = Math.round(v).toString() + '%';
         },
@@ -23,5 +29,6 @@ export function AnimatedCounter({ value, className }: AnimatedCounterProps) {
   }, [value]);
 
   return <span ref={nodeRef} className={className}>{value}%</span>;
-}
+});
+
 export default AnimatedCounter;

@@ -1,3 +1,4 @@
+import React, { useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Globe, ChevronDown, Check, Clock, Palette } from 'lucide-react';
 import { SUPPORTED_LANGS, type LangKey } from '../i18n';
@@ -15,7 +16,7 @@ interface HeaderProps {
   t: (key: string) => string;
 }
 
-export function Header({
+export const Header = React.memo(function Header({
   isConnected,
   connTime,
   theme,
@@ -26,16 +27,39 @@ export function Header({
   setShowLangPicker,
   t,
 }: HeaderProps) {
+  const langDropdownRef = useRef<HTMLDivElement>(null);
+  const langButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        showLangPicker &&
+        langDropdownRef.current &&
+        !langDropdownRef.current.contains(event.target as Node) &&
+        langButtonRef.current &&
+        !langButtonRef.current.contains(event.target as Node)
+      ) {
+        setShowLangPicker(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showLangPicker, setShowLangPicker]);
+
+  const currentThemeLabel = theme === 'dark' ? 'Dark' : theme === 'cyberpunk' ? 'Cyberpunk' : 'Light';
+
   return (
     <>
       <div className="fixed top-4 right-4 z-50 flex gap-2">
         {/* Language Dropdown */}
         <div className="relative">
           <button
+            ref={langButtonRef}
             onClick={() => setShowLangPicker(!showLangPicker)}
-            className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors flex items-center gap-1.5"
+            className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors flex items-center gap-1.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
             title="Language"
             aria-label="Select Language"
+            aria-expanded={showLangPicker}
           >
             <Globe className="w-5 h-5 text-cyan-400" />
             <span className="text-xs text-slate-300 hidden sm:inline">
@@ -46,10 +70,13 @@ export function Header({
           <AnimatePresence>
             {showLangPicker && (
               <motion.div
+                ref={langDropdownRef}
                 initial={{ opacity: 0, y: -5 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -5 }}
                 className="absolute right-0 top-12 bg-black/90 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl min-w-[160px] z-50"
+                role="listbox"
+                aria-label="Supported Languages"
               >
                 {SUPPORTED_LANGS.map((l) => (
                   <button
@@ -59,9 +86,11 @@ export function Header({
                       localStorage.setItem('ms-lang', l.code);
                       setShowLangPicker(false);
                     }}
-                    className={`w-full px-4 py-2.5 text-left text-sm flex items-center gap-3 hover:bg-white/10 transition-colors ${
+                    className={`w-full px-4 py-2.5 text-left text-sm flex items-center gap-3 hover:bg-white/10 transition-colors cursor-pointer ${
                       lang === l.code ? 'bg-white/5 text-white' : 'text-slate-400'
                     }`}
+                    role="option"
+                    aria-selected={lang === l.code}
                     aria-label={`Switch language to ${l.label}`}
                   >
                     <span className="text-lg">{l.flag}</span>
@@ -73,11 +102,12 @@ export function Header({
             )}
           </AnimatePresence>
         </div>
+
         <button
           onClick={() => setTheme(theme === 'dark' ? 'cyberpunk' : theme === 'cyberpunk' ? 'light' : 'dark')}
-          className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors flex items-center gap-1"
-          title="Switch Theme (Dark / Cyberpunk / Light)"
-          aria-label="Switch Theme"
+          className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors flex items-center gap-1 cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+          title={`Switch Theme (Current: ${currentThemeLabel})`}
+          aria-label={`Switch Theme from ${currentThemeLabel}`}
         >
           <Palette className="w-5 h-5 text-emerald-400" />
         </button>
@@ -94,7 +124,7 @@ export function Header({
         <div className="flex flex-col items-center justify-center mb-12 text-center">
           <div className="w-20 h-20 bg-gradient-to-br from-emerald-500/20 via-black to-cyan-500/20 border border-emerald-500/30 rounded-3xl flex items-center justify-center mb-5 shadow-[0_0_30px_rgba(16,185,129,0.3)] relative overflow-hidden group">
             <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/30 to-cyan-500/30 opacity-0 group-hover:opacity-100 transition-opacity" />
-            <img src="/favicon.png" alt="MephistoVault" className="w-12 h-12 rounded-xl relative z-10 shadow-lg group-hover:scale-110 transition-transform" />
+            <img src="/favicon.png" alt="MephistoVault Logo" className="w-12 h-12 rounded-xl relative z-10 shadow-lg group-hover:scale-110 transition-transform" />
             {isConnected ? (
               <div className="absolute inset-0 border-2 border-emerald-400 rounded-3xl animate-pulse" />
             ) : (
@@ -130,5 +160,6 @@ export function Header({
       </div>
     </>
   );
-}
+});
+
 export default Header;

@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Upload,
@@ -56,7 +57,7 @@ interface SendViewProps {
   t: (key: string) => string;
 }
 
-export function SendView({
+export const SendView = React.memo(function SendView({
   fileToShare,
   setFileToShare,
   isZipping,
@@ -89,6 +90,99 @@ export function SendView({
   onClose,
   t,
 }: SendViewProps) {
+  const [showQuickTextModal, setShowQuickTextModal] = useState(false);
+  const [quickTextContent, setQuickTextContent] = useState('');
+
+  const handleQuickTextSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickTextContent.trim()) return;
+    const blob = new Blob([quickTextContent], { type: 'text/plain;charset=utf-8' });
+    const noteFile = new File(
+      [blob],
+      `secret-note-${Date.now().toString().slice(-4)}.txt`,
+      { type: 'text/plain' },
+    );
+    setFileToShare(noteFile);
+    setQuickTextContent('');
+    setShowQuickTextModal(false);
+  };
+
+  const handleInstantCamera = async () => {
+    let stream: MediaStream | null = null;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const video = document.createElement('video');
+      video.muted = true;
+      video.playsInline = true;
+      video.srcObject = stream;
+      await video.play();
+
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 1280;
+      canvas.height = video.videoHeight || 720;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(video, 0, 0);
+
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            const snapFile = new File(
+              [blob],
+              `ram-camera-snap-${Date.now().toString().slice(-4)}.jpg`,
+              { type: 'image/jpeg' },
+            );
+            setFileToShare(snapFile);
+          }
+        },
+        'image/jpeg',
+        0.9,
+      );
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      alert('Kamera başlatılamadı veya erişim reddedildi: ' + message);
+    } finally {
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
+      }
+    }
+  };
+
+  const handleInstantScreen = async () => {
+    let stream: MediaStream | null = null;
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      const video = document.createElement('video');
+      video.muted = true;
+      video.playsInline = true;
+      video.srcObject = stream;
+      await video.play();
+
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 1920;
+      canvas.height = video.videoHeight || 1080;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(video, 0, 0);
+
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const screenFile = new File(
+            [blob],
+            `ram-screen-cap-${Date.now().toString().slice(-4)}.png`,
+            { type: 'image/png' },
+          );
+          setFileToShare(screenFile);
+        }
+      }, 'image/png');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      alert('Ekran yakalanamadı veya iptal edildi: ' + message);
+    } finally {
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
+      }
+    }
+  };
+
   return (
     <motion.div
       key="send"
@@ -103,7 +197,7 @@ export function SendView({
         </h2>
         <button
           onClick={onClose}
-          className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-white/10 transition-colors"
+          className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
           aria-label="Close Send View"
         >
           <X className="w-4 h-4" />
@@ -124,33 +218,45 @@ export function SendView({
               <p className="text-sm text-slate-400">{t('compressSub')}</p>
             </div>
           ) : (
-            <div className="flex flex-col gap-3 w-full">
+            <div className="flex flex-col gap-4 w-full">
+              {/* Hidden File and Folder Inputs */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={onFileChange}
+              />
+              <input
+                ref={folderInputRef}
+                type="file"
+                {...({ webkitdirectory: '', directory: '' } as React.InputHTMLAttributes<HTMLInputElement>)}
+                multiple
+                className="hidden"
+                onChange={onFileChange}
+              />
+
+              {/* Main Drop Area (Clickable Card) */}
               <div
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}
                 onDrop={onDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`relative w-full border-2 border-dashed rounded-2xl p-8 transition-all group flex flex-col items-center text-center overflow-hidden cursor-pointer ${
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    fileInputRef.current?.click();
+                  }
+                }}
+                className={`relative w-full border-2 border-dashed rounded-2xl p-8 transition-all group flex flex-col items-center text-center overflow-hidden cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50 ${
                   isDragging
                     ? 'border-emerald-500 bg-emerald-500/10 scale-105 shadow-[0_0_30px_rgba(16,185,129,0.2)]'
                     : 'border-white/10 hover:border-emerald-500/30 hover:bg-emerald-500/5'
                 }`}
+                aria-label="Drag and drop files here or click to browse"
               >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={onFileChange}
-                />
-                <input
-                  ref={folderInputRef}
-                  type="file"
-                  {...({ webkitdirectory: '', directory: '' } as React.InputHTMLAttributes<HTMLInputElement>)}
-                  multiple
-                  className="hidden"
-                  onChange={onFileChange}
-                />
                 <motion.div
                   animate={{ y: isDragging ? -10 : 0 }}
                   className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 transition-colors ${
@@ -175,116 +281,110 @@ export function SendView({
                     {isDragging ? t('dropHot') : t('dropHere')}
                   </span>
                 </div>
-                
-                <p className="text-slate-500 text-sm mb-4">{t('dropSub')}</p>
 
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      fileInputRef.current?.click();
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-emerald-500/20 border border-white/10 hover:border-emerald-500/30 rounded-xl text-sm text-slate-300 hover:text-white transition-all"
-                    aria-label="Select files to send"
-                  >
-                    <FileIcon className="w-4 h-4 text-emerald-400" /> {t('selectFiles')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      folderInputRef.current?.click();
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-500/30 rounded-xl text-sm text-slate-300 hover:text-white transition-all"
-                    aria-label="Select folder to send"
-                  >
-                    <Folder className="w-4 h-4 text-cyan-400" /> {t('selectFolder')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const text = prompt('Paylaşmak istediğiniz metin veya şifreyi girin / Paste text or password to share:');
-                      if (text) {
-                        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-                        const noteFile = new File([blob], `secret-note-${Date.now().toString().slice(-4)}.txt`, { type: 'text/plain' });
-                        setFileToShare(noteFile);
-                      }
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-purple-500/20 border border-white/10 hover:border-purple-500/30 rounded-xl text-sm text-slate-300 hover:text-white transition-all cursor-pointer"
-                    aria-label="Quick text share"
-                  >
-                    ⚡ Hızlı Metin
-                  </button>
-
-                  {/* Instant Camera Capture to RAM */}
-                  <button
-                    type="button"
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      try {
-                        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                        const video = document.createElement('video');
-                        video.srcObject = stream;
-                        await video.play();
-                        const canvas = document.createElement('canvas');
-                        canvas.width = video.videoWidth || 1280;
-                        canvas.height = video.videoHeight || 720;
-                        const ctx = canvas.getContext('2d');
-                        ctx?.drawImage(video, 0, 0);
-                        stream.getTracks().forEach((t) => t.stop());
-                        canvas.toBlob((blob) => {
-                          if (blob) {
-                            const snapFile = new File([blob], `ram-camera-snap-${Date.now().toString().slice(-4)}.jpg`, { type: 'image/jpeg' });
-                            setFileToShare(snapFile);
-                          }
-                        }, 'image/jpeg', 0.9);
-                      } catch (err: unknown) {
-                        const message = err instanceof Error ? err.message : String(err);
-                        alert('Kamera başlatılamadı: ' + message);
-                      }
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-pink-500/20 border border-white/10 hover:border-pink-500/30 rounded-xl text-sm text-slate-300 hover:text-white transition-all cursor-pointer"
-                    title="Cihaza kaydetmeden anlık fotoğraf çekip gönder"
-                  >
-                    <Camera className="w-4 h-4 text-pink-400" /> 📸 Anlık Foto Çek
-                  </button>
-
-                  {/* Instant Screen Capture to RAM */}
-                  <button
-                    type="button"
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      try {
-                        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-                        const video = document.createElement('video');
-                        video.srcObject = stream;
-                        await video.play();
-                        const canvas = document.createElement('canvas');
-                        canvas.width = video.videoWidth || 1920;
-                        canvas.height = video.videoHeight || 1080;
-                        const ctx = canvas.getContext('2d');
-                        ctx?.drawImage(video, 0, 0);
-                        stream.getTracks().forEach((t) => t.stop());
-                        canvas.toBlob((blob) => {
-                          if (blob) {
-                            const screenFile = new File([blob], `ram-screen-cap-${Date.now().toString().slice(-4)}.png`, { type: 'image/png' });
-                            setFileToShare(screenFile);
-                          }
-                        }, 'image/png');
-                      } catch (err: unknown) {
-                        const message = err instanceof Error ? err.message : String(err);
-                        alert('Ekran yakalanamadı: ' + message);
-                      }
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-blue-500/20 border border-white/10 hover:border-blue-500/30 rounded-xl text-sm text-slate-300 hover:text-white transition-all cursor-pointer"
-                    title="Cihaza kaydetmeden ekran görüntüsü alıp gönder"
-                  >
-                    <Monitor className="w-4 h-4 text-blue-400" /> 🖥️ Ekran Yakala
-                  </button>
-                </div>
+                <p className="text-slate-500 text-sm">{t('dropSub')}</p>
               </div>
+
+              {/* Quick Action Selector Toolbar (Separated from Dropzone) */}
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-2 px-3.5 py-2 bg-white/5 hover:bg-emerald-500/20 border border-white/10 hover:border-emerald-500/30 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  aria-label="Select files to send"
+                >
+                  <FileIcon className="w-4 h-4 text-emerald-400" /> {t('selectFiles')}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => folderInputRef.current?.click()}
+                  className="flex items-center gap-2 px-3.5 py-2 bg-white/5 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-500/30 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                  aria-label="Select folder to send"
+                >
+                  <Folder className="w-4 h-4 text-cyan-400" /> {t('selectFolder')}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowQuickTextModal(true)}
+                  className="flex items-center gap-2 px-3.5 py-2 bg-white/5 hover:bg-purple-500/20 border border-white/10 hover:border-purple-500/30 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                  aria-label="Quick text share"
+                >
+                  ⚡ Hızlı Metin
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleInstantCamera}
+                  className="flex items-center gap-2 px-3.5 py-2 bg-white/5 hover:bg-pink-500/20 border border-white/10 hover:border-pink-500/30 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-pink-500/50"
+                  title="Cihaza kaydetmeden anlık fotoğraf çekip gönder"
+                  aria-label="Take instant photo to share"
+                >
+                  <Camera className="w-4 h-4 text-pink-400" /> 📸 Anlık Foto
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleInstantScreen}
+                  className="flex items-center gap-2 px-3.5 py-2 bg-white/5 hover:bg-blue-500/20 border border-white/10 hover:border-blue-500/30 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                  title="Cihaza kaydetmeden ekran görüntüsü alıp gönder"
+                  aria-label="Capture screen to share"
+                >
+                  <Monitor className="w-4 h-4 text-blue-400" /> 🖥️ Ekran Yakala
+                </button>
+              </div>
+
+              {/* Quick Text Input Modal */}
+              <AnimatePresence>
+                {showQuickTextModal && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="mt-4 p-4 bg-black/60 border border-purple-500/30 rounded-2xl space-y-3"
+                    role="dialog"
+                    aria-label="Quick Text Share Dialog"
+                  >
+                    <div className="flex items-center justify-between text-xs font-bold text-purple-300">
+                      <span>⚡ Hızlı Metin Paylaşımı (RAM Üzerinden)</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowQuickTextModal(false)}
+                        className="text-slate-400 hover:text-white p-1"
+                        aria-label="Close Text Dialog"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <form onSubmit={handleQuickTextSubmit} className="space-y-3">
+                      <textarea
+                        value={quickTextContent}
+                        onChange={(e) => setQuickTextContent(e.target.value)}
+                        placeholder="Paylaşmak istediğiniz metin veya şifreyi yazın..."
+                        className="w-full h-28 bg-black/50 border border-white/10 rounded-xl p-3 text-xs font-mono text-white focus:outline-none focus:border-purple-500/50 resize-none"
+                        autoFocus
+                      />
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowQuickTextModal(false)}
+                          className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-bold text-slate-300 cursor-pointer"
+                        >
+                          İptal
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={!quickTextContent.trim()}
+                          className="px-4 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-xs font-bold text-white cursor-pointer"
+                        >
+                          Paylaş
+                        </button>
+                      </div>
+                    </form>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )
         ) : (
@@ -301,7 +401,7 @@ export function SendView({
               {transferProgress <= 0 && !isConnected && (
                 <button
                   onClick={() => setFileToShare(null)}
-                  className="text-slate-500 hover:text-white p-2"
+                  className="text-slate-500 hover:text-white p-2 rounded-lg transition-colors cursor-pointer"
                   aria-label="Deselect file"
                 >
                   <X className="w-4 h-4" />
@@ -318,6 +418,7 @@ export function SendView({
                 value={expirationSec}
                 onChange={(e) => setExpirationSec && setExpirationSec(Number(e.target.value))}
                 className="bg-black/60 border border-white/10 text-emerald-400 text-xs font-bold font-mono px-3 py-1.5 rounded-xl focus:outline-none focus:border-emerald-500 cursor-pointer"
+                aria-label="Select Auto Destruct Time"
               >
                 {EXPIRATION_OPTIONS.map((opt) => (
                   <option key={opt.id} value={opt.sec} className="bg-slate-900 text-white">
@@ -342,6 +443,8 @@ export function SendView({
                       ? 'bg-red-500 hover:bg-red-400 text-white animate-pulse'
                       : 'bg-purple-500 hover:bg-purple-400 text-white'
                   }`}
+                  aria-label={isVoiceActive ? 'Disable Microphone' : 'Enable Microphone'}
+                  aria-pressed={isVoiceActive}
                 >
                   <Mic className="w-3.5 h-3.5" /> {isVoiceActive ? '🎙️ Mik Kapat' : '🎙️ Konuş / Dinle'}
                 </button>
@@ -349,13 +452,16 @@ export function SendView({
             )}
 
             {errorStatus && (
-              <div className="w-full bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-3 rounded-lg mb-6 text-center">
+              <div
+                role="alert"
+                className="w-full bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-3 rounded-lg mb-6 text-center font-medium"
+              >
                 {errorStatus}
               </div>
             )}
 
             {!isConnected && !errorStatus && (
-              <div className="text-center mb-6">
+              <div className="text-center mb-6 w-full">
                 <p className="text-sm text-slate-400 mb-4">{t('shareCode')}</p>
                 <div className="flex items-center gap-2 justify-center">
                   <div className="bg-black/60 border border-white/10 px-6 py-4 rounded-xl font-mono text-3xl font-black tracking-widest text-emerald-500 shadow-inner">
@@ -364,7 +470,7 @@ export function SendView({
                   <div className="flex flex-col gap-2">
                     <button
                       onClick={onCopy}
-                      className="bg-white/5 hover:bg-white/10 border border-white/5 p-3 rounded-xl transition-colors group"
+                      className="bg-white/5 hover:bg-white/10 border border-white/5 p-3 rounded-xl transition-colors group cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                       title="Copy Invite Link"
                       aria-label="Copy invitation link to clipboard"
                     >
@@ -376,13 +482,14 @@ export function SendView({
                     </button>
                     <button
                       onClick={() => setShowQR(!showQR)}
-                      className={`border p-3 rounded-xl transition-colors group ${
+                      className={`border p-3 rounded-xl transition-colors group cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50 ${
                         showQR
                           ? 'bg-emerald-500/20 border-emerald-500/50 hover:bg-emerald-500/30'
                           : 'bg-white/5 hover:bg-white/10 border-white/5'
                       }`}
                       title="Show QR Code"
                       aria-label="Show QR Code representation of share link"
+                      aria-expanded={showQR}
                     >
                       <QrCode
                         className={`w-5 h-5 ${
@@ -395,7 +502,7 @@ export function SendView({
                     {showQR && (
                       <button
                         onClick={onDownloadQR}
-                        className="bg-white/5 hover:bg-white/10 border border-white/5 p-3 rounded-xl transition-colors group"
+                        className="bg-white/5 hover:bg-white/10 border border-white/5 p-3 rounded-xl transition-colors group cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                         title="Download QR as PNG"
                         aria-label="Download QR code image as PNG"
                       >
@@ -443,7 +550,7 @@ export function SendView({
                   animate={{ opacity: 1, scale: 1 }}
                   className="mb-4 flex items-center gap-2 bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-mono px-3 py-1.5 rounded-full"
                 >
-                  <Users className="w-3 h-3" /> {peerCount} {t('peers')}
+                  <Users className="w-3.5 h-3.5" /> {peerCount} {t('peers')}
                 </motion.div>
               )}
               {isConnected ? (
@@ -455,7 +562,7 @@ export function SendView({
                     <p className="text-green-500 font-bold">{t('complete')}</p>
                     {selfDestructSec > 0 && (
                       <div className="mt-2 flex items-center justify-center gap-2 text-red-400 text-xs font-mono animate-pulse">
-                        <Bomb className="w-3 h-3" /> {t('selfDestruct')} {selfDestructSec}s
+                        <Bomb className="w-3.5 h-3.5" /> {t('selfDestruct')} {selfDestructSec}s
                       </div>
                     )}
                   </div>
@@ -480,5 +587,6 @@ export function SendView({
       </div>
     </motion.div>
   );
-}
+});
+
 export default SendView;

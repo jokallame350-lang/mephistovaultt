@@ -24,10 +24,10 @@ export function useFileHandler(completedFile: CompletedFile | null) {
     fileToShareRef.current = fileToShare;
     if (fileToShare && fileToShare.type.startsWith('image/')) {
       const url = URL.createObjectURL(fileToShare);
-      setPreviewUrl(url);
+      queueMicrotask(() => setPreviewUrl(url));
       return () => URL.revokeObjectURL(url);
     } else {
-      setPreviewUrl(null);
+      queueMicrotask(() => setPreviewUrl(null));
     }
   }, [fileToShare]);
 
@@ -35,11 +35,13 @@ export function useFileHandler(completedFile: CompletedFile | null) {
   useEffect(() => {
     if (completedFile && completedFile.type.startsWith('video/')) {
       const url = URL.createObjectURL(completedFile.blob);
-      setVideoPreviewUrl(url);
+      queueMicrotask(() => setVideoPreviewUrl(url));
       return () => URL.revokeObjectURL(url);
     } else {
-      setVideoPreviewUrl(null);
-      setShowVideoPlayer(false);
+      queueMicrotask(() => {
+        setVideoPreviewUrl(null);
+        setShowVideoPlayer(false);
+      });
     }
   }, [completedFile]);
 
@@ -68,8 +70,10 @@ export function useFileHandler(completedFile: CompletedFile | null) {
       };
       loadZip();
     } else {
-      setZipContents([]);
-      setShowZipPreview(false);
+      queueMicrotask(() => {
+        setZipContents([]);
+        setShowZipPreview(false);
+      });
     }
   }, [completedFile]);
 

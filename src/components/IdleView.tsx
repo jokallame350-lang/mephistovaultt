@@ -1,3 +1,4 @@
+import React from 'react';
 import { motion } from 'framer-motion';
 import { Upload, Download, Zap, Flame, EyeOff, Shield, Activity, FileText, Folder, Lock } from 'lucide-react';
 
@@ -7,7 +8,11 @@ interface IdleViewProps {
   t: (key: string) => string;
 }
 
-export function IdleView({ setMode, sessionTransfers, t }: IdleViewProps) {
+export const IdleView = React.memo(function IdleView({
+  setMode,
+  sessionTransfers,
+  t,
+}: IdleViewProps) {
   return (
     <motion.div
       key="idle"
@@ -20,7 +25,7 @@ export function IdleView({ setMode, sessionTransfers, t }: IdleViewProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <button
           onClick={() => setMode('send')}
-          className="relative overflow-hidden group p-8 rounded-3xl bg-gradient-to-br from-emerald-500/10 via-black/60 to-black/80 border border-emerald-500/30 hover:border-emerald-400 transition-all duration-300 shadow-2xl hover:shadow-[0_0_30px_rgba(16,185,129,0.25)] text-left cursor-pointer"
+          className="relative overflow-hidden group p-8 rounded-3xl bg-gradient-to-br from-emerald-500/10 via-black/60 to-black/80 border border-emerald-500/30 hover:border-emerald-400 transition-all duration-300 shadow-2xl hover:shadow-[0_0_30px_rgba(16,185,129,0.25)] text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
           aria-label="Send files securely"
         >
           <div className="absolute top-0 right-0 p-6 text-emerald-500/10 group-hover:text-emerald-500/20 group-hover:scale-125 transition-all">
@@ -38,7 +43,7 @@ export function IdleView({ setMode, sessionTransfers, t }: IdleViewProps) {
 
         <button
           onClick={() => setMode('receive')}
-          className="relative overflow-hidden group p-8 rounded-3xl bg-gradient-to-br from-cyan-500/10 via-black/60 to-black/80 border border-cyan-500/30 hover:border-cyan-400 transition-all duration-300 shadow-2xl hover:shadow-[0_0_30px_rgba(6,182,212,0.25)] text-left cursor-pointer"
+          className="relative overflow-hidden group p-8 rounded-3xl bg-gradient-to-br from-cyan-500/10 via-black/60 to-black/80 border border-cyan-500/30 hover:border-cyan-400 transition-all duration-300 shadow-2xl hover:shadow-[0_0_30px_rgba(6,182,212,0.25)] text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
           aria-label="Receive files securely"
         >
           <div className="absolute top-0 right-0 p-6 text-cyan-500/10 group-hover:text-cyan-500/20 group-hover:scale-125 transition-all">
@@ -59,21 +64,24 @@ export function IdleView({ setMode, sessionTransfers, t }: IdleViewProps) {
       <div className="flex flex-wrap items-center justify-center gap-2.5 p-3 rounded-2xl bg-white/[0.02] border border-white/5">
         <button
           onClick={() => setMode('send')}
-          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 transition-all text-xs font-bold"
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 transition-all text-xs font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+          aria-label="Share quick text note"
         >
           <FileText className="w-4 h-4" />
           <span>⚡ Hızlı Metin Paylaş</span>
         </button>
         <button
           onClick={() => setMode('send')}
-          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500/20 transition-all text-xs font-bold"
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500/20 transition-all text-xs font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+          aria-label="Package and send folder"
         >
           <Folder className="w-4 h-4" />
           <span>📦 Klasör Paketle</span>
         </button>
         <button
           onClick={() => setMode('receive')}
-          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 transition-all text-xs font-bold"
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 transition-all text-xs font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+          aria-label="Connect using room code"
         >
           <Lock className="w-4 h-4" />
           <span>🔑 Koda Bağlan</span>
@@ -113,5 +121,6 @@ export function IdleView({ setMode, sessionTransfers, t }: IdleViewProps) {
       )}
     </motion.div>
   );
-}
+});
+
 export default IdleView;

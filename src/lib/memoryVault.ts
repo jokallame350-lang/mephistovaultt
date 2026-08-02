@@ -11,6 +11,19 @@ export interface VaultFileItem {
   addedAt: number;
 }
 
+function generateSecureId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  let hex = '';
+  for (let i = 0; i < bytes.length; i++) {
+    hex += bytes[i].toString(16).padStart(2, '0');
+  }
+  return `${hex}-${Date.now()}`;
+}
+
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, 1);
@@ -28,7 +41,7 @@ function openDB(): Promise<IDBDatabase> {
 export async function saveToMemoryVault(blob: Blob, name: string, type: string): Promise<VaultFileItem> {
   const db = await openDB();
   const item: VaultFileItem = {
-    id: Math.random().toString(36).substring(2, 9) + '-' + Date.now(),
+    id: generateSecureId(),
     name,
     type,
     size: blob.size,
@@ -40,8 +53,19 @@ export async function saveToMemoryVault(blob: Blob, name: string, type: string):
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
     const req = store.put(item);
-    req.onsuccess = () => resolve(item);
-    req.onerror = () => reject(req.error);
+
+    tx.oncomplete = () => {
+      db.close();
+      resolve(item);
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error || req.error);
+    };
+    tx.onabort = () => {
+      db.close();
+      reject(new Error('Transaction aborted'));
+    };
   });
 }
 
@@ -52,8 +76,19 @@ export async function getMemoryVaultFiles(): Promise<VaultFileItem[]> {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const store = tx.objectStore(STORE_NAME);
       const req = store.getAll();
-      req.onsuccess = () => resolve(req.result || []);
-      req.onerror = () => reject(req.error);
+
+      tx.oncomplete = () => {
+        db.close();
+        resolve(req.result || []);
+      };
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error || req.error);
+      };
+      tx.onabort = () => {
+        db.close();
+        reject(new Error('Transaction aborted'));
+      };
     });
   } catch {
     return [];
@@ -65,9 +100,20 @@ export async function deleteFromMemoryVault(id: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
-    const req = store.delete(id);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
+    store.delete(id);
+
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
+    tx.onabort = () => {
+      db.close();
+      reject(new Error('Transaction aborted'));
+    };
   });
 }
 
@@ -76,8 +122,20 @@ export async function purgeMemoryVault(): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
-    const req = store.clear();
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
+    store.clear();
+
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
+    tx.onabort = () => {
+      db.close();
+      reject(new Error('Transaction aborted'));
+    };
   });
 }
+

@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import JSZip from 'jszip';
 import {
   Download,
   X,
@@ -54,7 +55,53 @@ interface ReceiveViewProps {
   t: (key: string) => string;
 }
 
-export function ReceiveView({
+const MediaPreview = React.memo(function MediaPreview({
+  completedFile,
+}: {
+  completedFile: CompletedFile;
+}) {
+  const mediaUrl = React.useMemo(() => {
+    if (!completedFile) return null;
+    return URL.createObjectURL(completedFile.blob);
+  }, [completedFile]);
+
+  React.useEffect(() => {
+    return () => {
+      if (mediaUrl) URL.revokeObjectURL(mediaUrl);
+    };
+  }, [mediaUrl]);
+
+  if (!mediaUrl) return null;
+
+  if (completedFile.type.startsWith('audio/')) {
+    return (
+      <div className="p-3 bg-black/60 border border-white/10 rounded-2xl max-w-sm mx-auto">
+        <audio controls className="w-full" src={mediaUrl} />
+      </div>
+    );
+  }
+  if (completedFile.type.startsWith('video/')) {
+    return (
+      <div className="p-2 bg-black/60 border border-white/10 rounded-2xl max-w-sm mx-auto overflow-hidden">
+        <video controls className="w-full rounded-xl" src={mediaUrl} />
+      </div>
+    );
+  }
+  if (completedFile.type.startsWith('image/')) {
+    return (
+      <div className="p-2 bg-black/60 border border-white/10 rounded-2xl max-w-sm mx-auto overflow-hidden">
+        <img
+          src={mediaUrl}
+          alt="Received Preview"
+          className="w-full max-h-60 object-contain rounded-xl"
+        />
+      </div>
+    );
+  }
+  return null;
+});
+
+export const ReceiveView = React.memo(function ReceiveView({
   receiveCode,
   setReceiveCode,
   isConnected,
@@ -90,8 +137,15 @@ export function ReceiveView({
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onConnect(receiveCode);
+    if (receiveCode.length >= 11) {
+      onConnect(receiveCode);
+    }
   };
+
+  const safetyReport = React.useMemo(() => {
+    if (!completedFile) return null;
+    return inspectFileSafety(completedFile.name, completedFile.blob.size, completedFile.type);
+  }, [completedFile]);
 
   return (
     <motion.div
@@ -107,7 +161,7 @@ export function ReceiveView({
         </h2>
         <button
           onClick={onClose}
-          className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-white/10 transition-colors"
+          className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500/50 cursor-pointer"
           aria-label="Close Receive View"
         >
           <X className="w-4 h-4" />
@@ -115,80 +169,61 @@ export function ReceiveView({
       </div>
       <div className="p-6 md:p-8">
         {errorStatus && (
-          <div className="w-full bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-3 rounded-lg mb-6 text-center">
+          <div
+            role="alert"
+            className="w-full bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-3.5 rounded-xl mb-6 text-center font-medium"
+          >
             {errorStatus}
           </div>
         )}
 
         {!isConnected && transferProgress === -1 ? (
           <div className="relative">
-            <form onSubmit={handleFormSubmit}>
-              <label
-                htmlFor="receive-code-input"
-                className="block text-sm font-bold tracking-wide text-slate-400 uppercase mb-3"
-              >
-                {t('connCode')}
-              </label>
-              <div className="flex flex-col gap-3">
-                <div className="flex gap-2 w-full">
+            <form onSubmit={handleFormSubmit} className="space-y-4">
+              <div className="space-y-2 text-left">
+                <label className="text-xs font-mono text-slate-400 font-bold uppercase tracking-wider block">
+                  {t('connCode')}
+                </label>
+                <div className="relative">
                   <input
-                    id="receive-code-input"
                     type="text"
                     value={receiveCode}
                     onChange={(e) => setReceiveCode(e.target.value)}
-                    placeholder="e.g. abc-xyz#1234"
-                    className="flex-1 min-w-0 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white text-center sm:text-left text-lg sm:text-xl tracking-widest focus:outline-none focus:border-cyan-500/50 transition-colors font-mono"
-                    maxLength={13}
-                    aria-label="Encrypted code to receive files"
+                    placeholder="vault-xxxx-xxxx"
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-3.5 px-4 text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500 font-mono text-center tracking-wider transition-all"
+                    required
                   />
                   <button
                     type="button"
                     onClick={() => setShowQRScanner(!showQRScanner)}
-                    className={`px-4 shrink-0 rounded-xl flex items-center justify-center transition-colors border ${
-                      showQRScanner
-                        ? 'bg-emerald-500 text-white border-emerald-500'
-                        : 'bg-white/5 text-slate-400 hover:text-white border-white/10 hover:bg-white/10'
-                    }`}
-                    title="Scan QR Code"
-                    aria-label="Scan QR code using camera"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-cyan-400 hover:bg-white/5 rounded-xl transition-colors cursor-pointer"
+                    title={t('scanQR')}
+                    aria-label={t('scanQR')}
                   >
-                    <Camera className="w-6 h-6" />
+                    <QrCode className="w-5 h-5" />
                   </button>
                 </div>
-                <button
-                  type="submit"
-                  disabled={receiveCode.length < 11}
-                  className="bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white w-full py-3.5 flex items-center justify-center font-bold tracking-wide rounded-xl transition-colors shrink-0 cursor-pointer"
-                  aria-label="Connect to Sender"
-                >
-                  {t('connect')}
-                </button>
               </div>
-              <div className="mt-8 flex items-start gap-3 bg-cyan-500/5 border border-cyan-500/10 p-4 rounded-xl">
-                <Shield className="w-5 h-5 text-cyan-400 mt-0.5 shrink-0" />
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Once connected, files are transferred securely via WebRTC. The transfer is{' '}
-                  <strong className="text-slate-200">end-to-end encrypted</strong> and never passes
-                  through any storage servers.
-                </p>
-              </div>
+
+              <button
+                type="submit"
+                disabled={receiveCode.length < 11}
+                className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3.5 px-6 rounded-2xl transition-all shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_30px_rgba(6,182,212,0.5)] cursor-pointer"
+              >
+                {t('connect')}
+              </button>
             </form>
 
-            {/* QR Scanner Overlay */}
             {showQRScanner && (
-              <div
-                className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-black/50"
-                role="dialog"
-                aria-label="QR Code Scanner"
-              >
-                <div className="p-2 bg-white/5 flex items-center justify-between border-b border-white/5 relative z-10">
-                  <span className="text-sm font-bold text-slate-300 flex items-center gap-2">
-                    <QrCode className="w-4 h-4" /> {t('scanQR')}
-                  </span>
+              <div className="mt-4 border border-cyan-500/30 rounded-2xl overflow-hidden bg-black/80">
+                <div className="p-3 bg-cyan-500/10 flex items-center justify-between border-b border-cyan-500/20">
+                  <div className="flex items-center gap-2 text-cyan-400 text-xs font-bold font-mono">
+                    <Camera className="w-4 h-4 animate-pulse" />
+                    <span>QR Tara (Otomatik Bağlan)</span>
+                  </div>
                   <button
                     onClick={() => setShowQRScanner(false)}
-                    className="text-slate-400 hover:text-white p-1 rounded-md transition-colors"
-                    aria-label="Close QR Scanner"
+                    className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -238,11 +273,13 @@ export function ReceiveView({
                 <button
                   type="button"
                   onClick={toggleVoiceTalkie}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md cursor-pointer focus:outline-none ${
                     isVoiceActive
                       ? 'bg-red-500 hover:bg-red-400 text-white animate-pulse'
                       : 'bg-purple-500 hover:bg-purple-400 text-white'
                   }`}
+                  aria-label={isVoiceActive ? 'Disable Microphone' : 'Enable Microphone'}
+                  aria-pressed={isVoiceActive}
                 >
                   <Mic className="w-3.5 h-3.5" /> {isVoiceActive ? '🎙️ Mik Kapat' : '🎙️ Konuş / Dinle'}
                 </button>
@@ -263,7 +300,10 @@ export function ReceiveView({
 
                 {/* Format Inspector Danger Warning */}
                 {DANGEROUS_EXTENSIONS.some((ext) => fileMeta.name.toLowerCase().endsWith(ext)) && (
-                  <div className="w-full bg-amber-500/10 border border-amber-500/30 p-3.5 rounded-2xl flex items-start gap-3 text-amber-400 text-xs text-left">
+                  <div
+                    role="alert"
+                    className="w-full bg-amber-500/10 border border-amber-500/30 p-3.5 rounded-2xl flex items-start gap-3 text-amber-400 text-xs text-left"
+                  >
                     <AlertTriangle className="w-5 h-5 shrink-0 text-amber-400 mt-0.5" />
                     <div>
                       <p className="font-bold text-amber-300">⚠️ DİKKAT: Potansiyel Tehlikeli Çalıştırılabilir Dosya!</p>
@@ -304,76 +344,40 @@ export function ReceiveView({
                 <p className="text-slate-400 text-sm mb-2">{t('readySave')}</p>
 
                 {/* Media Preview (Audio / Video / Image) */}
-                {(() => {
-                  const mediaUrl = React.useMemo(() => {
-                    if (!completedFile) return null;
-                    return URL.createObjectURL(completedFile.blob);
-                  }, [completedFile]);
+                <MediaPreview completedFile={completedFile} />
 
-                  React.useEffect(() => {
-                    return () => {
-                      if (mediaUrl) URL.revokeObjectURL(mediaUrl);
-                    };
-                  }, [mediaUrl]);
-
-                  if (!mediaUrl) return null;
-
-                  if (completedFile.type.startsWith('audio/')) {
-                    return (
-                      <div className="p-3 bg-black/60 border border-white/10 rounded-2xl max-w-sm mx-auto">
-                        <audio controls className="w-full" src={mediaUrl} />
-                      </div>
-                    );
-                  }
-                  if (completedFile.type.startsWith('video/')) {
-                    return (
-                      <div className="p-2 bg-black/60 border border-white/10 rounded-2xl max-w-sm mx-auto overflow-hidden">
-                        <video controls className="w-full rounded-xl" src={mediaUrl} />
-                      </div>
-                    );
-                  }
-                  if (completedFile.type.startsWith('image/')) {
-                    return (
-                      <div className="p-2 bg-black/60 border border-white/10 rounded-2xl max-w-sm mx-auto overflow-hidden">
-                        <img src={mediaUrl} alt="Received Preview" className="w-full max-h-60 object-contain rounded-xl" />
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
                 {selfDestructSec > 0 && (
                   <div className="mb-4 flex items-center justify-center gap-2 text-red-400 text-xs font-mono animate-pulse">
-                    <Bomb className="w-3 h-3" /> {t('selfDestruct')} {selfDestructSec}s
+                    <Bomb className="w-3.5 h-3.5" /> {t('selfDestruct')} {selfDestructSec}s
                   </div>
                 )}
 
                 {/* Sandbox Script Inspection Card */}
-                {(() => {
-                  const report = inspectFileSafety(completedFile.name, completedFile.blob.size, completedFile.type);
-                  return (
-                    <div className={`w-full max-w-sm mx-auto p-3.5 rounded-2xl border text-left text-xs space-y-1.5 ${
-                      report.status === 'danger'
+                {safetyReport && (
+                  <div
+                    className={`w-full max-w-sm mx-auto p-3.5 rounded-2xl border text-left text-xs space-y-1.5 ${
+                      safetyReport.status === 'danger'
                         ? 'bg-red-500/10 border-red-500/30 text-red-300'
-                        : report.status === 'warning'
+                        : safetyReport.status === 'warning'
                         ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
                         : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                    }`}>
-                      <div className="flex items-center justify-between font-bold text-sm">
-                        <span className="flex items-center gap-1.5">
-                          <Shield className="w-4 h-4" /> 🛡️ Sandbox Analizi
-                        </span>
-                        <span>{report.label}</span>
-                      </div>
-                      <div className="space-y-1 text-slate-300 text-[11px] font-mono">
-                        {report.details.map((d, idx) => (
-                          <div key={idx} className="flex items-center gap-1">
-                            • {d}
-                          </div>
-                        ))}
-                      </div>
+                    }`}
+                  >
+                    <div className="flex items-center justify-between font-bold text-sm">
+                      <span className="flex items-center gap-1.5">
+                        <Shield className="w-4 h-4" /> 🛡️ Sandbox Analizi
+                      </span>
+                      <span>{safetyReport.label}</span>
                     </div>
-                  );
-                })()}
+                    <div className="space-y-1 text-slate-300 text-[11px] font-mono">
+                      {safetyReport.details.map((d, idx) => (
+                        <div key={idx} className="flex items-center gap-1">
+                          • {d}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex flex-col gap-2.5 w-full max-w-sm mx-auto">
                   <button
@@ -381,7 +385,7 @@ export function ReceiveView({
                       await saveFile(completedFile.blob, completedFile.name);
                       if (handleBurnOnDownload) handleBurnOnDownload();
                     }}
-                    className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-bold py-3 px-6 w-full rounded-2xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] flex items-center justify-center gap-2 group cursor-pointer"
+                    className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-bold py-3 px-6 w-full rounded-2xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] flex items-center justify-center gap-2 group cursor-pointer active:scale-[0.99]"
                     aria-label={`Save ${completedFile.name} to device`}
                   >
                     <Download className="w-5 h-5 shrink-0 group-hover:-translate-y-1 transition-transform" />
@@ -460,7 +464,6 @@ export function ReceiveView({
                                     onClick={async (e) => {
                                       e.stopPropagation();
                                       try {
-                                        const JSZip = (await import('jszip')).default;
                                         const loadedZip = await JSZip.loadAsync(completedFile.blob);
                                         const zipFile = loadedZip.file(f.path);
                                         if (zipFile) {
@@ -474,6 +477,7 @@ export function ReceiveView({
                                     }}
                                     className="px-2 py-1 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 shrink-0 cursor-pointer"
                                     title="Bu dosyayı tek başına indir"
+                                    aria-label={`Download file ${f.name} individually`}
                                   >
                                     <Download className="w-3 h-3" /> Tek İndir
                                   </button>
@@ -520,5 +524,6 @@ export function ReceiveView({
       </div>
     </motion.div>
   );
-}
+});
+
 export default ReceiveView;

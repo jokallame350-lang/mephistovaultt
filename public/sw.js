@@ -1,6 +1,6 @@
-// MephistoVault PWA Service Worker
-const CACHE_NAME = 'mephistovault-v1';
-const ASSETS_TO_CACHE = [
+// MephistoVault PWA Service Worker v2
+const CACHE_NAME = 'mephistovault-v2';
+const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/favicon.png',
@@ -10,7 +10,7 @@ const ASSETS_TO_CACHE = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+      return cache.addAll(STATIC_ASSETS);
     })
   );
   self.skipWaiting();
@@ -30,13 +30,54 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Only handle standard HTTP/HTTPS requests (ignore file://, chrome-extension://, etc.)
-  if (!event.request.url.startsWith('http')) return;
+  const req = event.request;
+  const url = new URL(req.url);
 
-  // Network-first strategy for dynamic content
+  // Only handle standard HTTP/HTTPS GET requests
+  if (!url.protocol.startsWith('http') || req.method !== 'GET') return;
+
+  // 1. Navigation requests (HTML): Network-First with Cache fallback & update
+  if (req.mode === 'navigate' || req.headers.get('accept')?.includes('text/html')) {
+    event.respondWith(
+      fetch(req)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const cacheCopy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, cacheCopy));
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          return caches.match(req).then((cachedResponse) => {
+            return cachedResponse || caches.match('/index.html');
+          });
+        })
+    );
+    return;
+  }
+
+  // 2. Static Assets (JS, CSS, images, fonts): Cache-First with Network fallback & cache update
   event.respondWith(
-    fetch(event.request).catch(() => {
-      return caches.match(event.request);
+    caches.match(req).then((cachedResponse) => {
+      if (cachedResponse) {
+        // Asynchronously update cache in background
+        fetch(req)
+          .then((networkResponse) => {
+            if (networkResponse && networkResponse.status === 200) {
+              caches.open(CACHE_NAME).then((cache) => cache.put(req, networkResponse));
+            }
+          })
+          .catch(() => {});
+        return cachedResponse;
+      }
+
+      return fetch(req).then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+          const cacheCopy = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, cacheCopy));
+        }
+        return networkResponse;
+      });
     })
   );
 });

@@ -1,22 +1,27 @@
 import { CODE_CHARS, CODE_LENGTH, PIN_MIN, PIN_MAX } from './constants';
+import { wipeMemory } from './encryption';
+
+export { wipeMemory };
 
 // ── Formatting ──
 
 export function formatBytes(bytes: number, decimals = 2): string {
-  if (!+bytes) return '0 Bytes';
+  if (!+bytes || bytes < 0) return '0 Bytes';
   const k = 1024;
   const dm = decimals < 0 ? 0 : decimals;
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+  const clampedIndex = Math.min(i, sizes.length - 1);
+  return `${parseFloat((bytes / Math.pow(k, clampedIndex)).toFixed(dm))} ${sizes[clampedIndex]}`;
 }
 
 export function formatSpeed(bytesPerSec: number): string {
-  if (bytesPerSec === 0) return '0 B/s';
+  if (bytesPerSec <= 0) return '0 B/s';
   const k = 1024;
   const sizes = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
   const i = Math.floor(Math.log(bytesPerSec) / Math.log(k));
-  return `${parseFloat((bytesPerSec / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+  const clampedIndex = Math.min(i, sizes.length - 1);
+  return `${parseFloat((bytesPerSec / Math.pow(k, clampedIndex)).toFixed(1))} ${sizes[clampedIndex]}`;
 }
 
 export function formatETA(seconds: number): string {
@@ -27,31 +32,56 @@ export function formatETA(seconds: number): string {
 }
 
 export function formatTime(s: number): string {
+  if (isNaN(s) || s < 0) return '00:00';
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 }
 
-// ── Code Generation ──
+// ── Code Generation (CSPRNG Unbiased Sampling) ──
 
+/**
+ * Generate a cryptographically secure, modulo-bias-free share code like "abc-xyz#1234".
+ */
 export function generateCode(): string {
-  const randomBytes = new Uint32Array(CODE_LENGTH + 1);
-  crypto.getRandomValues(randomBytes);
-
+  const charsLen = CODE_CHARS.length; // 31
+  // For modulo-bias-free sampling, max valid integer below 2^32 is floor(2^32 / 31) * 31 - 1
+  const maxValidCharInt = Math.floor(0x100000000 / charsLen) * charsLen;
+  
   let str = '';
-  for (let i = 0; i < CODE_LENGTH; i++) {
-    str += CODE_CHARS.charAt(randomBytes[i] % CODE_CHARS.length);
+  const randomUint32 = new Uint32Array(1);
+  try {
+    while (str.length < CODE_LENGTH) {
+      crypto.getRandomValues(randomUint32);
+      const val = randomUint32[0];
+      if (val < maxValidCharInt) {
+        str += CODE_CHARS.charAt(val % charsLen);
+      }
+    }
+
+    const pinRange = PIN_MAX - PIN_MIN + 1; // 9000
+    const maxValidPinInt = Math.floor(0x100000000 / pinRange) * pinRange;
+    let pinVal = 0;
+    while (true) {
+      crypto.getRandomValues(randomUint32);
+      const val = randomUint32[0];
+      if (val < maxValidPinInt) {
+        pinVal = PIN_MIN + (val % pinRange);
+        break;
+      }
+    }
+
+    return `${str.substring(0, 3)}-${str.substring(3, 6)}#${pinVal}`;
+  } finally {
+    wipeMemory(randomUint32);
   }
-
-  const range = PIN_MAX - PIN_MIN + 1;
-  const pin = PIN_MIN + (randomBytes[CODE_LENGTH] % range);
-
-  return `${str.substring(0, 3)}-${str.substring(3, 6)}#${pin}`;
 }
 
 // ── Audio Notification ──
 
 export function playTransferSound(): void {
   try {
-    const ctx = new AudioContext();
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -64,16 +94,20 @@ export function playTransferSound(): void {
     osc.stop(ctx.currentTime + 0.5);
 
     setTimeout(() => {
-      const o2 = ctx.createOscillator();
-      const g2 = ctx.createGain();
-      o2.connect(g2);
-      g2.connect(ctx.destination);
-      o2.frequency.value = 1320;
-      o2.type = 'sine';
-      g2.gain.setValueAtTime(0.3, ctx.currentTime);
-      g2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
-      o2.start(ctx.currentTime);
-      o2.stop(ctx.currentTime + 0.6);
+      try {
+        const o2 = ctx.createOscillator();
+        const g2 = ctx.createGain();
+        o2.connect(g2);
+        g2.connect(ctx.destination);
+        o2.frequency.value = 1320;
+        o2.type = 'sine';
+        g2.gain.setValueAtTime(0.3, ctx.currentTime);
+        g2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+        o2.start(ctx.currentTime);
+        o2.stop(ctx.currentTime + 0.6);
+      } catch {
+        // ignore secondary tone error
+      }
     }, 200);
 
     setTimeout(() => {
@@ -98,11 +132,13 @@ export async function copyToClipboard(text: string): Promise<boolean> {
     ta.style.position = 'fixed';
     ta.style.left = '-9999px';
     document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    return true;
+    try {
+      ta.focus();
+      ta.select();
+      return document.execCommand('copy');
+    } finally {
+      document.body.removeChild(ta);
+    }
   } catch {
     return false;
   }
@@ -118,12 +154,17 @@ export function downloadQRCode(shareCode: string): void {
     a.href = url;
     a.download = `mephistovault-qr-${shareCode.split('#')[0]}.png`;
     document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    try {
+      a.click();
+    } finally {
+      if (a.parentNode) {
+        a.parentNode.removeChild(a);
+      }
+    }
   }
 }
 
-// ── File Save (with File System Access API fallback) ──
+// ── File Save (with File System Access API fallback & Blob URL leak prevention) ──
 
 export async function saveFile(blob: Blob, name: string): Promise<void> {
   try {
@@ -141,16 +182,22 @@ export async function saveFile(blob: Blob, name: string): Promise<void> {
     // Fall through to legacy download for other errors
   }
 
-  // Legacy fallback
+  // Legacy fallback with guaranteed Blob URL cleanup
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.style.display = 'none';
   a.href = url;
   a.download = name;
   document.body.appendChild(a);
-  a.click();
-  setTimeout(() => {
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, 100);
+  try {
+    a.click();
+  } finally {
+    setTimeout(() => {
+      if (a.parentNode) {
+        a.parentNode.removeChild(a);
+      }
+      URL.revokeObjectURL(url);
+    }, 1000);
+  }
 }
+

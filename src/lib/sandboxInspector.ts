@@ -8,31 +8,72 @@ export interface SafetyReport {
   isExecutable: boolean;
 }
 
+const DANGEROUS_MIME_TYPES = [
+  'application/x-msdownload',
+  'application/x-executable',
+  'application/x-dosexec',
+  'application/x-bat',
+  'application/x-sh',
+  'application/x-msdos-program',
+  'application/x-pie-executable',
+  'application/vnd.microsoft.portable-executable',
+  'application/x-php',
+];
+
 export function inspectFileSafety(filename: string, size: number, type: string): SafetyReport {
-  const ext = filename.substring(filename.lastIndexOf('.')).toLowerCase();
+  const cleanFilename = (filename || '').trim();
+  const lastDot = cleanFilename.lastIndexOf('.');
+  const ext = lastDot !== -1 ? cleanFilename.substring(lastDot).toLowerCase().trim() : '';
+
   const details: string[] = [];
   let score = 100;
   let isExecutable = false;
 
+  // 1. RTLO (Right-to-Left Override) Unicode Spoofing Check
+  const hasRTLO = /[\u202E\u202D\u202A\u202B\u202C\u200E\u200F]/.test(cleanFilename);
+  if (hasRTLO) {
+    score -= 80;
+    isExecutable = true;
+    details.push('Kritik Tehlike: Unicode RTLO Gizleme Karakteri Tespit Edildi! (Dosya uzantısı gizlenmiş olabilir).');
+  }
+
+  // 2. Double Extension Attack Check (e.g. "document.pdf.exe" or "photo.png.vbs")
+  const doubleExtMatch = cleanFilename.toLowerCase().match(/\.([a-z0-9]+)\.([a-z0-9]+)$/);
+  if (doubleExtMatch) {
+    const secondExt = `.${doubleExtMatch[2]}`;
+    if (DANGEROUS_EXTENSIONS.includes(secondExt)) {
+      score -= 50;
+      isExecutable = true;
+      details.push(`Çift Uzantılı Maskeleme Tespit Edildi (${doubleExtMatch[0]}): İkincil çalıştırılabilir uzantı riski.`);
+    }
+  }
+
   if (type) {
     details.push(`MIME Türü: ${type}`);
+    // 3. Dangerous MIME Type Inspection
+    const cleanType = type.toLowerCase().trim();
+    if (DANGEROUS_MIME_TYPES.some((dType) => cleanType.includes(dType))) {
+      score -= 60;
+      isExecutable = true;
+      details.push(`Tehlikeli MIME Türü (${type}): Çalıştırılabilir ikili dosya imzası taşıyor.`);
+    }
   }
 
   const MACRO_EXTS = ['.docm', '.xlsm', '.pptm', '.dotm', '.xltm'];
   const ARCHIVE_EXTS = ['.zip', '.rar', '.7z', '.tar', '.gz'];
 
-  if (DANGEROUS_EXTENSIONS.includes(ext)) {
+  if (ext && DANGEROUS_EXTENSIONS.includes(ext)) {
     isExecutable = true;
     score -= 60;
     details.push(`Tehlikeli Çalıştırılabilir Uzantı (${ext}): Otomatik çalıştırma riski taşıyor.`);
   }
 
-  if (MACRO_EXTS.includes(ext)) {
+  if (ext && MACRO_EXTS.includes(ext)) {
     score -= 40;
     details.push(`VBA Makro İçeren Belge (${ext}): Gizli script çalıştırma potansiyeline sahip.`);
   }
 
-  if (ARCHIVE_EXTS.includes(ext)) {
+  if (ext && ARCHIVE_EXTS.includes(ext)) {
     details.push(`Sıkıştırılmış Arşiv (${ext}): İçindeki dosyalar ayıklandıktan sonra taranabilir.`);
   }
 
@@ -43,6 +84,8 @@ export function inspectFileSafety(filename: string, size: number, type: string):
   }
 
   details.push(`AES-256-GCM Uçtan Uca Şifreli WebRTC Tüneli Üzerinden Doğrulandı.`);
+
+  score = Math.max(0, Math.min(100, score));
 
   let status: 'safe' | 'warning' | 'danger' = 'safe';
   let label = 'Yüksek Güvenlik Puanı (%100 Temiz)';
@@ -63,3 +106,4 @@ export function inspectFileSafety(filename: string, size: number, type: string):
     isExecutable,
   };
 }
+

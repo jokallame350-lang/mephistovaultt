@@ -81,6 +81,9 @@ export function App() {
   // Initialize file handler
   const fileHandler = useFileHandler(peer.completedFile);
 
+  const processFiles = fileHandler.processFiles;
+  const setPeerMode = peer.setMode;
+
   // Web Share Target API: Parse shared text or link from mobile share menu
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -88,10 +91,11 @@ export function App() {
     if (sharedText) {
       const blob = new Blob([sharedText], { type: 'text/plain;charset=utf-8' });
       const sharedFile = new File([blob], `shared-note-${Date.now().toString().slice(-4)}.txt`, { type: 'text/plain' });
-      fileHandler.processFiles([sharedFile]);
-      peer.setMode('send');
+      processFiles([sharedFile]);
+      setPeerMode('send');
+      window.history.replaceState({}, '', window.location.pathname);
     }
-  }, [fileHandler, peer]);
+  }, [processFiles, setPeerMode]);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -137,50 +141,60 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const peerMode = peer.mode;
+  const peerShareCode = peer.shareCode;
+  const setPeerShareCode = peer.setShareCode;
+  const peerSetCopied = peer.setCopied;
+
   // Generate share code when mode is set to 'send'
   useEffect(() => {
-    if (peer.mode === 'send' && !peer.shareCode) {
+    if (peerMode === 'send' && !peerShareCode) {
       const newCode = generateCode();
-      peer.setShareCode(newCode);
+      setPeerShareCode(newCode);
     }
     // Scroll to top on mode change to prevent old scroll offsets
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [peer.mode, peer.shareCode, peer.setShareCode]);
+  }, [peerMode, peerShareCode, setPeerShareCode]);
 
   const handleCopyLink = useCallback(async () => {
-    const textToCopy = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(peer.shareCode)}`;
+    const textToCopy = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(peerShareCode)}`;
     const success = await copyToClipboard(textToCopy);
     if (success) {
-      peer.setCopied(true);
-      setTimeout(() => peer.setCopied(false), 2000);
+      peerSetCopied(true);
+      setTimeout(() => peerSetCopied(false), 2000);
     }
-  }, [peer.shareCode, peer.setCopied]);
+  }, [peerShareCode, peerSetCopied]);
 
   const handleDownloadQR = useCallback(() => {
-    downloadQRCode(peer.shareCode);
-  }, [peer.shareCode]);
+    downloadQRCode(peerShareCode);
+  }, [peerShareCode]);
+
+  const setReceiveCode = peer.setReceiveCode;
+  const connectAsReceiver = peer.connectAsReceiver;
 
   const handleConnectToDevice = useCallback(
     (code: string) => {
-      peer.setMode('receive');
-      peer.setReceiveCode(code);
+      setPeerMode('receive');
+      setReceiveCode(code);
       setTimeout(() => {
-        peer.connectAsReceiver(code);
+        connectAsReceiver(code);
       }, 100);
     },
-    [peer],
+    [setPeerMode, setReceiveCode, connectAsReceiver],
   );
+
+  const inviteDevice = discovery.inviteDevice;
 
   const handleInviteDevice = useCallback(
     (targetId: string) => {
       const newCode = generateCode();
-      peer.setShareCode(newCode);
-      peer.setMode('send');
+      setPeerShareCode(newCode);
+      setPeerMode('send');
       setTimeout(() => {
-        discovery.inviteDevice(targetId);
+        inviteDevice(targetId);
       }, 100);
     },
-    [peer, discovery],
+    [setPeerShareCode, setPeerMode, inviteDevice],
   );
 
   return (
