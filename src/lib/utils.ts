@@ -33,11 +33,17 @@ export function formatTime(s: number): string {
 // ── Code Generation ──
 
 export function generateCode(): string {
+  const randomBytes = new Uint32Array(CODE_LENGTH + 1);
+  crypto.getRandomValues(randomBytes);
+
   let str = '';
   for (let i = 0; i < CODE_LENGTH; i++) {
-    str += CODE_CHARS.charAt(Math.floor(Math.random() * CODE_CHARS.length));
+    str += CODE_CHARS.charAt(randomBytes[i] % CODE_CHARS.length);
   }
-  const pin = Math.floor(PIN_MIN + Math.random() * (PIN_MAX - PIN_MIN + 1));
+
+  const range = PIN_MAX - PIN_MIN + 1;
+  const pin = PIN_MIN + (randomBytes[CODE_LENGTH] % range);
+
   return `${str.substring(0, 3)}-${str.substring(3, 6)}#${pin}`;
 }
 
@@ -69,6 +75,10 @@ export function playTransferSound(): void {
       o2.start(ctx.currentTime);
       o2.stop(ctx.currentTime + 0.6);
     }, 200);
+
+    setTimeout(() => {
+      ctx.close().catch(() => {});
+    }, 900);
   } catch {
     // AudioContext not available (e.g. server-side or restricted environment)
   }

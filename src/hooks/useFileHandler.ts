@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import JSZip from 'jszip';
-import type { CompletedFile, ZipEntry } from '../types';
+import type { CompletedFile, ZipEntry, FileWithCustomPath, WebKitEntry, WebKitFileEntry, WebKitDirectoryEntry } from '../types';
 
 export function useFileHandler(completedFile: CompletedFile | null) {
   const [fileToShare, setFileToShare] = useState<File | null>(null);
@@ -57,7 +57,7 @@ export function useFileHandler(completedFile: CompletedFile | null) {
               name: zipEntry.name.split('/').filter(Boolean).pop() || zipEntry.name,
               path: relativePath,
               dir: zipEntry.dir,
-              size: (zipEntry as any)._data?.uncompressedSize || 0,
+              size: (zipEntry as unknown as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize || 0,
             });
           });
 
@@ -81,7 +81,7 @@ export function useFileHandler(completedFile: CompletedFile | null) {
       files.length > 1 ||
       files.some(
         (f) =>
-          (f as any).customPath?.includes('/') ||
+          (f as FileWithCustomPath).customPath?.includes('/') ||
           (f.webkitRelativePath && f.webkitRelativePath.includes('/')),
       );
 
@@ -94,7 +94,7 @@ export function useFileHandler(completedFile: CompletedFile | null) {
 
       files.forEach((f) => {
         const path =
-          (f as any).customPath ||
+          (f as FileWithCustomPath).customPath ||
           (f.webkitRelativePath && f.webkitRelativePath.includes('/')
             ? f.webkitRelativePath
             : f.name);
@@ -136,20 +136,20 @@ export function useFileHandler(completedFile: CompletedFile | null) {
     setIsDragging(false);
   };
 
-  const scanEntry = async (entry: any, path = ''): Promise<File[]> => {
+  const scanEntry = async (entry: WebKitEntry, path = ''): Promise<File[]> => {
     if (entry.isFile) {
       return new Promise<File[]>((resolve) => {
-        entry.file((file: File) => {
-          (file as any).customPath = path + file.name;
+        (entry as WebKitFileEntry).file((file: File) => {
+          (file as FileWithCustomPath).customPath = path + file.name;
           resolve([file]);
         });
       });
     } else if (entry.isDirectory) {
-      const dirReader = entry.createReader();
+      const dirReader = (entry as WebKitDirectoryEntry).createReader();
       return new Promise<File[]>((resolve) => {
         const readAll = async () => {
           let allFiles: File[] = [];
-          const readEntries = () => new Promise<any[]>((res) => dirReader.readEntries(res));
+          const readEntries = () => new Promise<WebKitEntry[]>((res) => dirReader.readEntries(res));
 
           let entries = await readEntries();
           while (entries.length > 0) {
@@ -176,10 +176,11 @@ export function useFileHandler(completedFile: CompletedFile | null) {
       let allFiles: File[] = [];
       for (const item of items) {
         if (item.kind === 'file') {
+          const itemExt = item as unknown as { getAsEntry?: () => WebKitEntry | null };
           const entry = item.webkitGetAsEntry
-            ? item.webkitGetAsEntry()
-            : (item as any).getAsEntry
-            ? (item as any).getAsEntry()
+            ? (item.webkitGetAsEntry() as unknown as WebKitEntry | null)
+            : itemExt.getAsEntry
+            ? itemExt.getAsEntry()
             : null;
           if (entry) {
             const files = await scanEntry(entry);

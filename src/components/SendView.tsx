@@ -137,16 +137,16 @@ export function SendView({
                 }`}
               >
                 <input
-                  ref={fileInputRef as any}
+                  ref={fileInputRef}
                   type="file"
                   multiple
                   className="hidden"
                   onChange={onFileChange}
                 />
                 <input
-                  ref={folderInputRef as any}
+                  ref={folderInputRef}
                   type="file"
-                  {...({ webkitdirectory: '', directory: '' } as any)}
+                  {...({ webkitdirectory: '', directory: '' } as React.InputHTMLAttributes<HTMLInputElement>)}
                   multiple
                   className="hidden"
                   onChange={onFileChange}
@@ -240,8 +240,9 @@ export function SendView({
                             setFileToShare(snapFile);
                           }
                         }, 'image/jpeg', 0.9);
-                      } catch (err: any) {
-                        alert('Kamera başlatılamadı: ' + err.message);
+                      } catch (err: unknown) {
+                        const message = err instanceof Error ? err.message : String(err);
+                        alert('Kamera başlatılamadı: ' + message);
                       }
                     }}
                     className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-pink-500/20 border border-white/10 hover:border-pink-500/30 rounded-xl text-sm text-slate-300 hover:text-white transition-all cursor-pointer"
@@ -272,8 +273,9 @@ export function SendView({
                             setFileToShare(screenFile);
                           }
                         }, 'image/png');
-                      } catch (err: any) {
-                        alert('Ekran yakalanamadı: ' + err.message);
+                      } catch (err: unknown) {
+                        const message = err instanceof Error ? err.message : String(err);
+                        alert('Ekran yakalanamadı: ' + message);
                       }
                     }}
                     className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-blue-500/20 border border-white/10 hover:border-blue-500/30 rounded-xl text-sm text-slate-300 hover:text-white transition-all cursor-pointer"

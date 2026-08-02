@@ -4,7 +4,7 @@ import type { DataConnection } from 'peerjs';
 import { CHUNK_SIZE, ERRORS, PEER_CONFIG } from '../lib/constants';
 import { deriveKey, encryptChunk, decryptChunk, clearKeyCache } from '../lib/encryption';
 import { formatETA, formatSpeed } from '../lib/utils';
-import type { FileMeta, CompletedFile, PeerMessage } from '../types';
+import type { FileMeta, CompletedFile, PeerMessage, PeerDataConnectionExt, PeerCustomError } from '../types';
 
 interface UsePeerConnectionProps {
   fileToShareRef: React.MutableRefObject<File | null>;
@@ -132,8 +132,9 @@ export function usePeerConnection({
             audioEl.play().catch(() => {});
           });
         }
-      } catch (err: any) {
-        alert('Mikrofon erişim izni verilmedi: ' + err.message);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        alert('Mikrofon erişim izni verilmedi: ' + message);
       }
     }
   }, [isVoiceActive]);
@@ -170,7 +171,7 @@ export function usePeerConnection({
         const encrypted = await encryptChunk(buffer, key);
 
         // WebRTC DataChannel backpressure throttling to prevent packet drop (4MB buffer threshold)
-        const dataChannel = (conn as any)._dc || (conn as any).dataChannel;
+        const dataChannel = (conn as PeerDataConnectionExt)._dc || (conn as PeerDataConnectionExt).dataChannel;
         if (dataChannel && dataChannel.bufferedAmount > 4 * 1024 * 1024) {
           await new Promise((resolve) => setTimeout(resolve, 5));
         }
@@ -184,8 +185,9 @@ export function usePeerConnection({
         const progress = Math.round((end / file.size) * 100);
         setTransferProgress(end === file.size ? 100 : Math.min(99, progress));
         calculateSpeedAndETA(end, file.size);
-      } catch (err: any) {
-        setErrorStatus(ERRORS.SEND_CHUNK_ERR + err.message);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        setErrorStatus(ERRORS.SEND_CHUNK_ERR + message);
       }
     },
     [shareCode, fileToShareRef, calculateSpeedAndETA],
@@ -211,7 +213,7 @@ export function usePeerConnection({
         setIsConnected(true);
       });
 
-      conn.on('data', (data: any) => {
+      conn.on('data', (data: unknown) => {
         const typedData = data as PeerMessage;
         if (typedData.type === 'request-metadata') {
           if (fileToShareRef.current) {
@@ -307,7 +309,7 @@ export function usePeerConnection({
             }, 500);
           });
 
-          conn.on('data', async (data: any) => {
+          conn.on('data', async (data: unknown) => {
             try {
               const typedData = data as PeerMessage;
               if (typedData.type === 'metadata') {
@@ -342,16 +344,12 @@ export function usePeerConnection({
                 const key = await deriveKey(sanitizedCode);
                 const decrypted = await decryptChunk(buffer, key);
 
-                const byteLength =
-                  decrypted.byteLength !== undefined
-                    ? decrypted.byteLength
-                    : (decrypted as any).length !== undefined
-                    ? (decrypted as any).length
-                    : 0;
+                const byteLength = (decrypted as ArrayBuffer).byteLength ?? 0;
 
                 if (byteLength === 0) throw new Error('Received chunk has zero length.');
 
-                receivedChunksRef.current.push(decrypted);
+                const chunkIndex = Math.floor(typedData.offset / CHUNK_SIZE);
+                receivedChunksRef.current[chunkIndex] = decrypted as ArrayBuffer;
                 receivedBytesRef.current += byteLength;
 
                 const meta = fileMetaRef.current;
@@ -374,8 +372,9 @@ export function usePeerConnection({
               } else if (typedData.type === 'chat') {
                 onChatMessage(typedData.text);
               }
-            } catch (err: any) {
-              setErrorStatus(ERRORS.PARSE_ERR + err.message);
+            } catch (err: unknown) {
+              const message = err instanceof Error ? err.message : String(err);
+              setErrorStatus(ERRORS.PARSE_ERR + message);
             }
           });
 
@@ -403,7 +402,7 @@ export function usePeerConnection({
         tryConnect();
       });
 
-      peer.on('error', (perr: any) => {
+      peer.on('error', (perr: PeerCustomError) => {
         if (perr.type === 'peer-unavailable') {
           setErrorStatus('Oda henüz hazır değil veya kod hatalı. Lütfen oda kodunu kontrol edip tekrar deneyin.');
         } else {

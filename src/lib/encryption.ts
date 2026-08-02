@@ -19,13 +19,14 @@ export async function deriveKey(shareCode: string): Promise<CryptoKey> {
   }
 
   const parts = cleanShareCode.split('#');
-  const pin = parts[1] || '0';
-  const salt = parts[0] || 'mephisto-default-salt';
+  const roomCode = parts[0] || 'mephisto-room';
+  const pin = parts[1] || '0000';
+  const secret = `${roomCode}#${pin}`;
 
   const encoder = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
-    encoder.encode(pin),
+    encoder.encode(secret),
     'PBKDF2',
     false,
     ['deriveKey'],
@@ -34,7 +35,7 @@ export async function deriveKey(shareCode: string): Promise<CryptoKey> {
   const derivedKey = await crypto.subtle.deriveKey(
     {
       name: 'PBKDF2',
-      salt: encoder.encode(salt),
+      salt: encoder.encode(roomCode),
       iterations: PBKDF2_ITERATIONS,
       hash: 'SHA-256',
     },

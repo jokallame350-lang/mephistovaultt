@@ -65,3 +65,36 @@ export interface LobbyEnv {
   readonly lobbyConn: DataConnection | null;
   broadcastToClients: (payload: LobbyMessage | BroadcastMessage) => void;
 }
+
+// ── File System & Drag-Drop Extended Types ──
+export interface FileWithCustomPath extends File {
+  customPath?: string;
+}
+
+export interface WebKitEntry {
+  isFile: boolean;
+  isDirectory: boolean;
+  name: string;
+}
+
+export interface WebKitFileEntry extends WebKitEntry {
+  file: (successCallback: (file: File) => void) => void;
+}
+
+export interface WebKitDirectoryReader {
+  readEntries: (successCallback: (entries: WebKitEntry[]) => void) => void;
+}
+
+export interface WebKitDirectoryEntry extends WebKitEntry {
+  createReader: () => WebKitDirectoryReader;
+}
+
+// ── PeerJS Extended Interfaces ──
+export interface PeerDataConnectionExt extends DataConnection {
+  _dc?: RTCDataChannel;
+}
+
+export interface PeerCustomError extends Error {
+  type?: string;
+}
+

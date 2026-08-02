@@ -15,6 +15,8 @@ import NearbyDevices from './components/NearbyDevices';
 import SEOFooter from './components/SEOFooter';
 import { playTransferSound, copyToClipboard, downloadQRCode, generateCode } from './lib/utils';
 
+import type { PeerMessage } from './types';
+
 export function App() {
   const [theme, setTheme] = useState<string>(() => {
     return localStorage.getItem('ms-theme') || 'dark';
@@ -39,8 +41,8 @@ export function App() {
   }, [lang]);
 
   // Wrapper for broadcast to avoid circular dependency issues
-  const broadcastRef = useRef<((msg: any) => void) | null>(null);
-  const broadcastWrapper = useCallback((msg: any) => {
+  const broadcastRef = useRef<((msg: PeerMessage) => void) | null>(null);
+  const broadcastWrapper = useCallback((msg: PeerMessage) => {
     if (broadcastRef.current) {
       broadcastRef.current(msg);
     }

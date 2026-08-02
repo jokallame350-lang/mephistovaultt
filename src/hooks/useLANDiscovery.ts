@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Peer } from 'peerjs';
 import type { DataConnection } from 'peerjs';
 import { PEER_CONFIG } from '../lib/constants';
-import type { DeviceInfo, LobbyEnv, BroadcastMessage, LobbyMessage } from '../types';
+import type { DeviceInfo, LobbyEnv, BroadcastMessage, LobbyMessage, PeerCustomError } from '../types';
 
 export function useLANDiscovery(
   shareCode: string,
@@ -28,10 +28,9 @@ export function useLANDiscovery(
       id: deviceId.current,
       name: `DEV-${deviceId.current.toUpperCase()}`,
       time: Date.now(),
-      code: shareCode || undefined,
       mode,
     };
-  }, [shareCode, mode]);
+  }, [mode]);
 
   // Keep a mutable ref of connectAsReceiver for BroadcastChannel callback to avoid stale closure
   const connectAsReceiverRef = useRef(connectAsReceiver);
@@ -59,13 +58,13 @@ export function useLANDiscovery(
           if (exists) {
             return prev.map((d) =>
               d.id === data.id
-                ? { ...d, time: data.time, code: data.code || d.code }
+                ? { ...d, time: data.time }
                 : d,
             );
           }
           return [
             ...prev,
-            { id: data.id, name: data.name, time: data.time, code: data.code },
+            { id: data.id, name: data.name, time: data.time },
           ];
         });
       }
@@ -78,9 +77,9 @@ export function useLANDiscovery(
       }
       if (data.type === 'lobby-sync' && data.devices) {
         setNearbyDevices(
-          Object.values(data.devices).filter(
-            (d) => d.id !== myDeviceRef.current.id && Date.now() - d.time < 15000,
-          ),
+          Object.values(data.devices)
+            .map(({ code: _c, ...rest }) => rest)
+            .filter((d) => d.id !== myDeviceRef.current.id && Date.now() - d.time < 15000),
         );
       }
     };
@@ -149,7 +148,7 @@ export function useLANDiscovery(
 
             hostPeer.on('connection', (conn) => {
               clients.push(conn);
-              conn.on('data', (data: any) => {
+              conn.on('data', (data: unknown) => {
                 const typedData = data as LobbyMessage;
                 if (typedData.type === 'announce') {
                   knownDevices[typedData.device.id] = {
@@ -194,7 +193,7 @@ export function useLANDiscovery(
                 });
               });
 
-              lobbyConn.on('data', (data: any) => {
+              lobbyConn.on('data', (data: unknown) => {
                 const typedData = data as LobbyMessage | BroadcastMessage;
                 if (typedData.type === 'lobby-sync') {
                   setNearbyDevices(
@@ -215,7 +214,7 @@ export function useLANDiscovery(
               });
             });
 
-            clientPeer.on('error', (cerr: any) => {
+            clientPeer.on('error', (cerr: PeerCustomError) => {
               if (
                 (cerr.type === 'peer-unavailable' || cerr.type === 'server-error') &&
                 !failedToFindHost

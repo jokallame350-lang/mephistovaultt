@@ -103,7 +103,7 @@ export function GhostChat({
                 </div>
               ))
             )}
-            <div ref={chatEndRef as any} />
+            <div ref={chatEndRef} />
           </div>
 
           <form onSubmit={onSendMessage} className="p-3 bg-black/40 border-t border-white/5 flex gap-2 relative">
@@ -177,7 +177,7 @@ export function GhostChat({
             <button
               type="button"
               onClick={() => {
-                onSendMessage({ preventDefault: () => {} } as any);
+                onSendMessage({ preventDefault: () => {} } as React.FormEvent);
                 alert('Not içeriği panoya gönderildi!');
               }}
               className="text-xs text-purple-400 hover:text-purple-200 underline cursor-pointer"

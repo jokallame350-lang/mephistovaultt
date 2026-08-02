@@ -304,21 +304,43 @@ export function ReceiveView({
                 <p className="text-slate-400 text-sm mb-2">{t('readySave')}</p>
 
                 {/* Media Preview (Audio / Video / Image) */}
-                {completedFile.type.startsWith('audio/') && (
-                  <div className="p-3 bg-black/60 border border-white/10 rounded-2xl max-w-sm mx-auto">
-                    <audio controls className="w-full" src={URL.createObjectURL(completedFile.blob)} />
-                  </div>
-                )}
-                {completedFile.type.startsWith('video/') && (
-                  <div className="p-2 bg-black/60 border border-white/10 rounded-2xl max-w-sm mx-auto overflow-hidden">
-                    <video controls className="w-full rounded-xl" src={URL.createObjectURL(completedFile.blob)} />
-                  </div>
-                )}
-                {completedFile.type.startsWith('image/') && (
-                  <div className="p-2 bg-black/60 border border-white/10 rounded-2xl max-w-sm mx-auto overflow-hidden">
-                    <img src={URL.createObjectURL(completedFile.blob)} alt="Received Preview" className="w-full max-h-60 object-contain rounded-xl" />
-                  </div>
-                )}
+                {(() => {
+                  const mediaUrl = React.useMemo(() => {
+                    if (!completedFile) return null;
+                    return URL.createObjectURL(completedFile.blob);
+                  }, [completedFile]);
+
+                  React.useEffect(() => {
+                    return () => {
+                      if (mediaUrl) URL.revokeObjectURL(mediaUrl);
+                    };
+                  }, [mediaUrl]);
+
+                  if (!mediaUrl) return null;
+
+                  if (completedFile.type.startsWith('audio/')) {
+                    return (
+                      <div className="p-3 bg-black/60 border border-white/10 rounded-2xl max-w-sm mx-auto">
+                        <audio controls className="w-full" src={mediaUrl} />
+                      </div>
+                    );
+                  }
+                  if (completedFile.type.startsWith('video/')) {
+                    return (
+                      <div className="p-2 bg-black/60 border border-white/10 rounded-2xl max-w-sm mx-auto overflow-hidden">
+                        <video controls className="w-full rounded-xl" src={mediaUrl} />
+                      </div>
+                    );
+                  }
+                  if (completedFile.type.startsWith('image/')) {
+                    return (
+                      <div className="p-2 bg-black/60 border border-white/10 rounded-2xl max-w-sm mx-auto overflow-hidden">
+                        <img src={mediaUrl} alt="Received Preview" className="w-full max-h-60 object-contain rounded-xl" />
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
                 {selfDestructSec > 0 && (
                   <div className="mb-4 flex items-center justify-center gap-2 text-red-400 text-xs font-mono animate-pulse">
                     <Bomb className="w-3 h-3" /> {t('selfDestruct')} {selfDestructSec}s
@@ -376,8 +398,9 @@ export function ReceiveView({
                         await saveToMemoryVault(completedFile.blob, completedFile.name, completedFile.type);
                         alert('💾 Dosya cihaza indirilmeden şifreli tarayıcı hafıza kasasına alındı! İstediğiniz an silebilirsiniz.');
                         if (handleBurnOnDownload) handleBurnOnDownload();
-                      } catch (err: any) {
-                        alert('Hafıza kasasına yazma hatası: ' + err.message);
+                      } catch (err: unknown) {
+                        const message = err instanceof Error ? err.message : String(err);
+                        alert('Hafıza kasasına yazma hatası: ' + message);
                       }
                     }}
                     className="bg-white/5 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-500/30 text-cyan-300 hover:text-cyan-100 font-bold py-2.5 px-4 w-full rounded-2xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer"
@@ -444,8 +467,9 @@ export function ReceiveView({
                                           const singleBlob = await zipFile.async('blob');
                                           await saveFile(singleBlob, f.name);
                                         }
-                                      } catch (err: any) {
-                                        alert('Dosya çıkarılamadı: ' + err.message);
+                                      } catch (err: unknown) {
+                                        const message = err instanceof Error ? err.message : String(err);
+                                        alert('Dosya çıkarılamadı: ' + message);
                                       }
                                     }}
                                     className="px-2 py-1 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 shrink-0 cursor-pointer"

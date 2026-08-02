@@ -1,3 +1,5 @@
+import { DANGEROUS_EXTENSIONS } from './constants';
+
 export interface SafetyReport {
   score: number; // 0 to 100
   status: 'safe' | 'warning' | 'danger';
@@ -16,11 +18,10 @@ export function inspectFileSafety(filename: string, size: number, type: string):
     details.push(`MIME Türü: ${type}`);
   }
 
-  const DANGEROUS_EXTS = ['.exe', '.bat', '.cmd', '.scr', '.vbs', '.ps1', '.msi', '.apk', '.jar', '.js', '.wsf', '.pif', '.com'];
   const MACRO_EXTS = ['.docm', '.xlsm', '.pptm', '.dotm', '.xltm'];
   const ARCHIVE_EXTS = ['.zip', '.rar', '.7z', '.tar', '.gz'];
 
-  if (DANGEROUS_EXTS.includes(ext)) {
+  if (DANGEROUS_EXTENSIONS.includes(ext)) {
     isExecutable = true;
     score -= 60;
     details.push(`Tehlikeli Çalıştırılabilir Uzantı (${ext}): Otomatik çalıştırma riski taşıyor.`);
