@@ -119,12 +119,20 @@ export const Header = React.memo(function Header({
         <div className="absolute bottom-[10%] left-[20%] w-[40vw] h-[40vw] max-w-[600px] max-h-[600px] bg-cyan-500/[0.03] rounded-full blur-3xl mix-blend-screen" />
       </div>
 
-      <div className="z-10 w-full max-w-lg">
+      <header className="z-10 w-full max-w-lg" role="banner">
         {/* Header */}
         <div className="flex flex-col items-center justify-center mb-12 text-center">
           <div className="w-20 h-20 bg-gradient-to-br from-emerald-500/20 via-black to-cyan-500/20 border border-emerald-500/30 rounded-3xl flex items-center justify-center mb-5 shadow-[0_0_30px_rgba(16,185,129,0.3)] relative overflow-hidden group">
             <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/30 to-cyan-500/30 opacity-0 group-hover:opacity-100 transition-opacity" />
-            <img src="/favicon.png" alt="MephistoVault Logo" className="w-12 h-12 rounded-xl relative z-10 shadow-lg group-hover:scale-110 transition-transform" />
+            <img
+              src="/favicon.png"
+              alt="MephistoVault Zero-Trace Encryption Vault Logo"
+              width="48"
+              height="48"
+              loading="eager"
+              decoding="async"
+              className="w-12 h-12 rounded-xl relative z-10 shadow-lg group-hover:scale-110 transition-transform"
+            />
             {isConnected ? (
               <div className="absolute inset-0 border-2 border-emerald-400 rounded-3xl animate-pulse" />
             ) : (
@@ -157,7 +165,7 @@ export const Header = React.memo(function Header({
             </motion.div>
           )}
         </div>
-      </div>
+      </header>
     </>
   );
 });

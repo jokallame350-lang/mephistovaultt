@@ -652,7 +652,13 @@ export const SendView = React.memo(function SendView({
 
             {previewUrl && (
               <div className="w-full mb-4 rounded-xl overflow-hidden border border-white/10 max-h-40">
-                <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                <img
+                  src={previewUrl}
+                  alt={fileToShare ? `Selected File Preview - ${fileToShare.name}` : "Encrypted File Bundle Preview"}
+                  loading="lazy"
+                  decoding="async"
+                  className="w-full h-full object-cover"
+                />
               </div>
             )}
 

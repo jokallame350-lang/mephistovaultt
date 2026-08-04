@@ -1,21 +1,44 @@
 {
-  "name": "Mephisto Vault - P2P Encrypted File Share",
+  "name": "MephistoVault — Güvenli Dosya Paylaşımı & E2E Encrypted P2P Transfer",
   "short_name": "MephistoVault",
-  "description": "Zero-trace, end-to-end encrypted P2P file and text sharing.",
+  "description": "Ücretsiz anonim dosya gönderme, p2p file transfer, e2e encrypted share ve burn on read file transfer platformu.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#050505",
   "theme_color": "#10b981",
+  "categories": [
+    "utilities",
+    "security",
+    "productivity"
+  ],
   "icons": [
     {
       "src": "/favicon.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "/favicon.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Güvenli Dosya Gönder",
+      "short_name": "Dosya Gönder",
+      "description": "Anında E2E şifreli P2P dosya transferi başlatın",
+      "url": "/?action=send",
+      "icons": [
+        {
+          "src": "/favicon.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ],
   "share_target": {

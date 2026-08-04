@@ -96,7 +96,9 @@ const MediaPreview = React.memo(function MediaPreview({
       <div className="p-2 bg-black/60 border border-white/10 rounded-2xl max-w-sm mx-auto overflow-hidden">
         <img
           src={mediaUrl}
-          alt="Received Preview"
+          alt={completedFile?.name ? `Received Encrypted File Preview - ${completedFile.name}` : "Received Encrypted Image Preview"}
+          loading="lazy"
+          decoding="async"
           className="w-full max-h-60 object-contain rounded-xl"
         />
       </div>

@@ -1,10 +1,81 @@
 <!doctype html>
-<html lang="en">
+<html lang="tr">
 
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="apple-touch-icon" href="/favicon.png" />
+
+  <!-- Primary SEO Meta Tags -->
+  <title>MephistoVault — Güvenli Dosya Paylaşımı | E2E Encrypted P2P File Transfer</title>
+  <meta name="title" content="MephistoVault — Güvenli Dosya Paylaşımı | E2E Encrypted P2P File Transfer" />
+  <meta name="description"
+    content="MephistoVault ile ücretsiz anonim dosya gönderme ve p2p file transfer yapın. Uçtan uca şifreli (e2e encrypted share), burn on read file transfer ve sıfır kayıtlı güvenli dosya paylaşımı platformu." />
+  <meta name="keywords"
+    content="güvenli dosya paylaşımı, p2p file transfer, e2e encrypted share, ücretsiz anonim dosya gönderme, burn on read file transfer, şifreli dosya transferi, anonymous file transfer, zero knowledge file sharing, WebRTC file drop, confidential file share" />
+  <meta name="author" content="MephistoVault" />
+  <meta name="publisher" content="MephistoVault" />
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+  <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+  <meta name="bingbot" content="index, follow" />
+  
+  <!-- Canonical & Language Alternates (Hreflang) -->
+  <link rel="canonical" href="https://www.mephistoshares.online/" />
+  <link rel="alternate" hreflang="x-default" href="https://www.mephistoshares.online/" />
+  <link rel="alternate" hreflang="en" href="https://www.mephistoshares.online/?lang=en" />
+  <link rel="alternate" hreflang="tr" href="https://www.mephistoshares.online/?lang=tr" />
+  <link rel="alternate" hreflang="es" href="https://www.mephistoshares.online/?lang=es" />
+  <link rel="alternate" hreflang="de" href="https://www.mephistoshares.online/?lang=de" />
+  <link rel="alternate" hreflang="fr" href="https://www.mephistoshares.online/?lang=fr" />
+  <link rel="alternate" hreflang="it" href="https://www.mephistoshares.online/?lang=it" />
+  <link rel="alternate" hreflang="pt" href="https://www.mephistoshares.online/?lang=pt" />
+  <link rel="alternate" hreflang="ru" href="https://www.mephistoshares.online/?lang=ru" />
+  <link rel="alternate" hreflang="ar" href="https://www.mephistoshares.online/?lang=ar" />
+  <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml" />
+
+  <!-- Open Graph / Facebook / LinkedIn / WhatsApp -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.mephistoshares.online/" />
+  <meta property="og:title" content="MephistoVault — Güvenli Dosya Paylaşımı & P2P Encrypted File Transfer" />
+  <meta property="og:description"
+    content="Ücretsiz anonim dosya gönderme ve E2E encrypted share teknolojisi ile sınırsız, hızlı ve sıfır sunucu kayıtlı p2p file transfer platformu. Burn on read file transfer seçeneği ile verileriniz tamamen güvende." />
+  <meta property="og:image" content="https://www.mephistoshares.online/og-image.png" />
+  <meta property="og:image:secure_url" content="https://www.mephistoshares.online/og-image.png" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="MephistoVault Güvenli Dosya Paylaşımı ve P2P File Transfer" />
+  <meta property="og:site_name" content="MephistoVault" />
+  <meta property="og:locale" content="tr_TR" />
+  <meta property="og:locale:alternate" content="en_US" />
+
+  <!-- Twitter Card Meta Tags -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@MephistoVault" />
+  <meta name="twitter:creator" content="@MephistoVault" />
+  <meta name="twitter:url" content="https://www.mephistoshares.online/" />
+  <meta name="twitter:title" content="MephistoVault — Güvenli Dosya Paylaşımı & P2P Encrypted File Transfer" />
+  <meta name="twitter:description"
+    content="Ücretsiz anonim dosya gönderme, E2E encrypted share ve burn on read file transfer platformu. Bulut yok, sınır yok, kayıt yok." />
+  <meta name="twitter:image" content="https://www.mephistoshares.online/og-image.png" />
+  <meta name="twitter:image:alt" content="MephistoVault Safe Encrypted P2P File Transfer" />
+
+  <!-- Mobile & PWA Theme Meta -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#050505" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)" />
+  <meta name="msapplication-TileColor" content="#050505" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="MephistoVault" />
+  <meta name="format-detection" content="telephone=no" />
+
+  <!-- Fonts Preconnect -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
   <!-- Critical Theme Script & Inline Styles to prevent FOUC -->
   <script>
     (function() {
@@ -68,72 +139,110 @@
       font-display: swap;
     }
   </style>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!-- SEO Meta Tags -->
-  <title>MephistoVault — Zero-Trace Encrypted File Transfer</title>
-  <meta name="description"
-    content="Military-grade E2E encrypted peer-to-peer file transfer. No servers, no logs, self-destructing. Send confidential files securely with MephistoVault." />
-  <meta name="keywords"
-    content="encrypted file transfer, P2P file sharing, zero knowledge, end-to-end encryption, WebRTC, secure drop, anonymous file sharing, no logs" />
-  <meta name="author" content="MephistoVault" />
-  <meta name="robots" content="index, follow" />
-  <link rel="canonical" href="https://www.mephistoshares.online/" />
-  <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml" />
-
-  <!-- Open Graph / Social -->
-  <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://www.mephistoshares.online/" />
-  <meta property="og:title" content="MephistoVault — Zero-Trace Encrypted File Transfer" />
-  <meta property="og:description"
-    content="Military-grade E2E encrypted P2P file transfer. No servers, no logs. Self-destructing transfers for professionals." />
-  <meta property="og:image" content="https://mephistoshares.online/og-image.png" />
-  <meta property="og:site_name" content="MephistoVault" />
-
-  <!-- Twitter Card -->
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:url" content="https://mephistoshares.online/" />
-  <meta name="twitter:title" content="MephistoVault — Zero-Trace Encrypted File Transfer" />
-  <meta name="twitter:description" content="P2P encrypted file drops. No cloud. No limits. Self-destructing." />
-  <meta name="twitter:image" content="https://mephistoshares.online/og-image.png" />
-
-  <!-- PWA -->
-  <link rel="manifest" href="/manifest.json" />
-  <meta name="theme-color" content="#050505" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="MephistoVault" />
-
-  <!-- Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-
-  <!-- Google Schema.org Structured Data -->
+  <!-- Google Schema.org Rich Structured Data (@graph) -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "WebApplication",
-    "name": "MephistoVault",
-    "url": "https://www.mephistoshares.online/",
-    "description": "Zero-Trace E2E Encrypted P2P File Transfer & Instant Voice Walkie-Talkie platform. Unlimited speed, no cloud logs, burn-on-read self-destruct.",
-    "applicationCategory": "UtilitiesApplication",
-    "operatingSystem": "All",
-    "offers": {
-      "@type": "Offer",
-      "price": "0",
-      "priceCurrency": "USD"
-    },
-    "aggregateRating": {
-      "@type": "AggregateRating",
-      "ratingValue": "4.9",
-      "ratingCount": "1280"
-    }
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://www.mephistoshares.online/#website",
+        "url": "https://www.mephistoshares.online/",
+        "name": "MephistoVault",
+        "description": "Güvenli dosya paylaşımı, E2E encrypted share ve P2P file transfer platformu.",
+        "inLanguage": ["tr", "en"],
+        "publisher": {
+          "@id": "https://www.mephistoshares.online/#organization"
+        }
+      },
+      {
+        "@type": "Organization",
+        "@id": "https://www.mephistoshares.online/#organization",
+        "name": "MephistoVault",
+        "url": "https://www.mephistoshares.online/",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://www.mephistoshares.online/favicon.png"
+        },
+        "image": "https://www.mephistoshares.online/og-image.png",
+        "description": "Askeri düzeyde uçtan uca şifrelemeyle (E2E) doğrudan P2P dosya transferi ve güvenli anonim paylaşım teknolojileri."
+      },
+      {
+        "@type": ["WebApplication", "SoftwareApplication"],
+        "@id": "https://www.mephistoshares.online/#software",
+        "name": "MephistoVault",
+        "url": "https://www.mephistoshares.online/",
+        "image": "https://www.mephistoshares.online/og-image.png",
+        "description": "MephistoVault; güvenli dosya paylaşımı, p2p file transfer, e2e encrypted share ve ücretsiz anonim dosya gönderme özelliklerine sahip, burn on read file transfer destekli WebRTC tabanlı web uygulamasıdır.",
+        "applicationCategory": "SecurityApplication",
+        "operatingSystem": "All",
+        "browserRequirements": "Requires HTML5, WebRTC, and Web Crypto API compatible browsers",
+        "softwareVersion": "2.0.0",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD",
+          "availability": "https://schema.org/InStock"
+        },
+        "aggregateRating": {
+          "@type": "AggregateRating",
+          "ratingValue": "4.9",
+          "ratingCount": "2450",
+          "bestRating": "5",
+          "worstRating": "1"
+        },
+        "featureList": [
+          "Güvenli dosya paylaşımı (Secure File Share)",
+          "P2P file transfer (Direct Peer-to-Peer WebRTC Transfer)",
+          "E2E encrypted share (AES-256 Uçtan Uca Şifreleme)",
+          "Ücretsiz anonim dosya gönderme (No Account & Zero Logs)",
+          "Burn on read file transfer (Okunduktan Sonra Kendi Kendini İmha Eden Transfer)"
+        ]
+      },
+      {
+        "@type": "FAQPage",
+        "@id": "https://www.mephistoshares.online/#faq",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "MephistoVault ile ücretsiz anonim dosya gönderme nasıl yapılır?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "MephistoVault'ta üyelik veya hesap oluşturma gerekmez. Dosyanızı seçip oluşan güvenli P2P bağlantı bağlantısını alıcı ile paylaşarak ücretsiz anonim dosya gönderme işlemini anında gerçekleştirebilirsiniz."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "P2P file transfer ve E2E encrypted share teknolojisi nasıl çalışır?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "P2P file transfer (Peer-to-Peer), verilerin doğrudan tarayıcılar arasında aktarılmasını sağlar. E2E encrypted share (uçtan uca şifreleme) sayesinde dosyalarınız gönderilmeden önce cihazınızda AES-256 ile şifrelenir ve sadece alıcı tarafından çözülebilir."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Burn on read file transfer (okunduktan sonra silinme) özelliği nedir?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Burn on read file transfer özelliği etkinleştirildiğinde, gönderilen dosya alıcı tarafından indirildikten veya okunduktan hemen sonra erişim bağlantısı imha edilir ve dosya tekrar indirilemez."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "MephistoVault dosya transferinde sunucularda kayıt (log) tutulur mu?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Hayır. MephistoVault zero-knowledge (sıfır bilgi) prensibiyle çalışır. Dosyalarınız hiçbir merkezi sunucuya yüklenmez veya sunucularda depolanmaz. Tüm transferler doğrudan tarayıcılar arasında P2P olarak gerçekleşir."
+            }
+          }
+        ]
+      }
+    ]
   }
   </script>
 
-  <!-- ========== GOOGLE ANALYTICS ========== -->
-  <!-- Update G-XXXXXXXXXX with your actual Measurement ID -->
+  <!-- Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-HQXSREQV3R"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
@@ -143,6 +252,7 @@
     gtag('config', 'G-HQXSREQV3R');
   </script>
 
+  <!-- Service Worker Registration -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

@@ -22,7 +22,7 @@ export const IdleView = React.memo(function IdleView({
       className="space-y-6"
     >
       {/* Send / Receive Main Action Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+      <section aria-label="Transfer Actions" className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <button
           onClick={() => setMode('send')}
           className="relative overflow-hidden group p-8 rounded-3xl bg-gradient-to-br from-emerald-500/10 via-black/60 to-black/80 border border-emerald-500/30 hover:border-emerald-400 transition-all duration-300 shadow-2xl hover:shadow-[0_0_30px_rgba(16,185,129,0.25)] text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
@@ -58,10 +58,10 @@ export const IdleView = React.memo(function IdleView({
           </h2>
           <p className="text-xs text-slate-400 font-medium leading-relaxed max-w-xs">{t('receiveDesc')}</p>
         </button>
-      </div>
+      </section>
 
       {/* Quick Action Tools Bar */}
-      <div className="flex flex-wrap items-center justify-center gap-2.5 p-3 rounded-2xl bg-white/[0.02] border border-white/5">
+      <section aria-label="Quick Action Tools" className="flex flex-wrap items-center justify-center gap-2.5 p-3 rounded-2xl bg-white/[0.02] border border-white/5">
         <button
           onClick={() => setMode('send')}
           className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 transition-all text-xs font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50"
@@ -86,26 +86,26 @@ export const IdleView = React.memo(function IdleView({
           <Lock className="w-4 h-4" />
           <span>🔑 Koda Bağlan</span>
         </button>
-      </div>
+      </section>
 
       {/* Hero Feature Cards */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="glass-panel p-4 text-center group hover:border-emerald-500/30 transition-all">
+      <section aria-label="Core Security Features" className="grid grid-cols-3 gap-3">
+        <article className="glass-panel p-4 text-center group hover:border-emerald-500/30 transition-all">
           <Zap className="w-6 h-6 text-emerald-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-          <p className="text-xs font-bold text-white mb-1">{t('heroFeature1')}</p>
+          <h3 className="text-xs font-bold text-white mb-1">{t('heroFeature1')}</h3>
           <p className="text-[10px] text-slate-500 leading-tight">{t('heroDesc1')}</p>
-        </div>
-        <div className="glass-panel p-4 text-center group hover:border-red-500/30 transition-all">
+        </article>
+        <article className="glass-panel p-4 text-center group hover:border-red-500/30 transition-all">
           <Flame className="w-6 h-6 text-red-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-          <p className="text-xs font-bold text-white mb-1">{t('heroFeature2')}</p>
+          <h3 className="text-xs font-bold text-white mb-1">{t('heroFeature2')}</h3>
           <p className="text-[10px] text-slate-500 leading-tight">{t('heroDesc2')}</p>
-        </div>
-        <div className="glass-panel p-4 text-center group hover:border-purple-500/30 transition-all">
+        </article>
+        <article className="glass-panel p-4 text-center group hover:border-purple-500/30 transition-all">
           <EyeOff className="w-6 h-6 text-purple-400 mx-auto mb-2 group-hover:scale-110 transition-transform" />
-          <p className="text-xs font-bold text-white mb-1">{t('heroFeature3')}</p>
+          <h3 className="text-xs font-bold text-white mb-1">{t('heroFeature3')}</h3>
           <p className="text-[10px] text-slate-500 leading-tight">{t('heroDesc3')}</p>
-        </div>
-      </div>
+        </article>
+      </section>
 
       {/* File Size Note */}
       <div className="flex items-center justify-center gap-2 text-[11px] text-slate-400 bg-white/[0.02] border border-white/5 px-4 py-2.5 rounded-2xl font-mono">

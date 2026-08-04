@@ -22,6 +22,13 @@ export function App() {
     return localStorage.getItem('ms-theme') || 'dark';
   });
   const [lang, setLang] = useState<LangKey>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlLang = params.get('lang') as LangKey | null;
+      if (urlLang && ['en', 'tr', 'es', 'de', 'fr', 'it', 'pt', 'ru', 'ar'].includes(urlLang)) {
+        return urlLang;
+      }
+    }
     return (localStorage.getItem('ms-lang') as LangKey) || 'en';
   });
   const [showLangPicker, setShowLangPicker] = useState(false);
@@ -35,9 +42,10 @@ export function App() {
     document.documentElement.className = theme === 'cyberpunk' ? 'cyberpunk-theme' : theme === 'light' ? 'light-theme' : '';
   }, [theme]);
 
-  // Sync language persistence
+  // Sync language persistence and html document lang
   useEffect(() => {
     localStorage.setItem('ms-lang', lang);
+    document.documentElement.lang = lang;
   }, [lang]);
 
   // Wrapper for broadcast to avoid circular dependency issues
@@ -216,7 +224,7 @@ export function App() {
         t={t}
       />
 
-      <div className="z-10 w-full max-w-lg">
+      <main className="z-10 w-full max-w-lg" id="main-content">
         <AnimatePresence mode="wait">
           {peer.mode === 'idle' && (
             <IdleView setMode={peer.setMode} sessionTransfers={sessionTransfers} t={t} />
@@ -322,8 +330,10 @@ export function App() {
             t={t}
           />
         )}
+      </main>
 
-        <SEOFooter />
+      <div className="z-10 w-full max-w-3xl sm:max-w-4xl px-2">
+        <SEOFooter lang={lang} t={t} />
       </div>
     </div>
   );
