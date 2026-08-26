@@ -50,7 +50,19 @@ export const Header = React.memo(function Header({
 
   return (
     <>
-      <div className="fixed top-4 right-4 z-50 flex gap-2">
+      <div className="fixed top-4 right-4 z-50 flex gap-2 items-center">
+        {/* MephistoMail Cross-Ecosystem Link */}
+        <a
+          href="https://mephistomail.site"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-3 py-2 rounded-xl bg-gradient-to-r from-red-600/20 to-orange-600/20 border border-red-500/30 hover:border-red-400/60 transition-all flex items-center gap-1.5 text-xs font-bold text-red-300 hover:text-white shadow-lg shadow-red-500/10"
+          title="MephistoMail — Free Disposable Temp Mail"
+        >
+          <span className="text-sm">📧</span>
+          <span className="hidden sm:inline">MephistoMail</span>
+        </a>
+
         {/* Language Dropdown */}
         <div className="relative">
           <button
