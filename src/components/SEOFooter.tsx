@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   Shield,
   Lock,
@@ -18,84 +18,88 @@ import type { LangKey } from '../i18n';
 
 interface SEOFooterProps {
   lang?: LangKey;
+  setLang?: (l: LangKey) => void;
   t?: (key: string) => string;
 }
 
-export const SEOFooter = React.memo(function SEOFooter({ lang = 'en' }: SEOFooterProps) {
+const FAQ_ITEMS = [
+  {
+    qTr: "MephistoVault nedir ve nasıl çalışır?",
+    qEn: "What is MephistoVault and how does it work?",
+    aTr: "MephistoVault, dosyalarınızı doğrudan tarayıcılar arasında uçtan uca şifreli (E2E) olarak aktaran sıfır iz (zero-trace) P2P (Peer-to-Peer) dosya transfer platformudur. Dosyalarınız hiçbir sunucuya yüklenmez; doğrudan alıcının cihazına aktarılır.",
+    aEn: "MephistoVault is a zero-trace P2P (Peer-to-Peer) file transfer platform that sends files directly between browsers using end-to-end encryption (E2E). Your files are never uploaded to any server; they transfer directly to the recipient's device."
+  },
+  {
+    qTr: "Dosyalarım sunucularda saklanıyor mu?",
+    qEn: "Are my files stored on any server?",
+    aTr: "Kesinlikle HAYIR. MephistoVault bulut veya veritabanı depolaması kullanmaz. Veriler doğrudan iki cihaz arasındaki WebRTC veri tünelinden aktarılır ve tarayıcı kapatıldığında bellekteki (RAM) geçici veriler otomatik olarak imha edilir.",
+    aEn: "Absolutely NOT. MephistoVault uses zero cloud or database storage. Data flows directly through an encrypted WebRTC data channel between devices. Once the connection closes, volatile RAM memory is immediately wiped."
+  },
+  {
+    qTr: "Şifreleme ne kadar güvenli? Dosyalarımı kimse görebilir mi?",
+    qEn: "How secure is the encryption? Can anyone intercept my files?",
+    aTr: "Verileriniz Web Crypto API kullanılarak PBKDF2 anahtar türetme ve askeri düzeyde AES-256-GCM algoritması ile cihazınızda şifrelenir. Bağlantı kodu olmadan şifre çözülemez. Araya giren hiç kimse, servis sağlayıcıları bile dosyalarınızın içeriğini göremez.",
+    aEn: "Your data is encrypted locally using Web Crypto API with PBKDF2 key derivation and military-grade AES-256-GCM cipher. Without the room key, decryption is mathematically impossible. Neither ISP nor middleman can read your content."
+  },
+  {
+    qTr: "Dosya boyutu veya hız sınırı var mı?",
+    qEn: "Is there any file size limit or speed capping?",
+    aTr: "Herhangi bir dosya boyutu limiti veya bant genişliği kısıtlaması yoktur. Transfer hızı tamamen sizin ve alıcının anlık internet bağlantı hızına bağlıdır.",
+    aEn: "There are no file size limits or bandwidth throttling. The transfer speed is only limited by your local network and internet bandwidth."
+  },
+  {
+    qTr: "Oturum kendini imha etme (Self-Destruct) özelliği nasıl çalışır?",
+    qEn: "How does the Burn-on-Read Self-Destruct feature work?",
+    aTr: "Transfer tamamlandıktan sonra veya 5 dakikalık zaman aşımı süresi dolduğunda, tüm WebRTC tünelleri kapatılır ve bellek sıfırlanır. Dijital ayak izi veya geçmiş kaydı kalmaz.",
+    aEn: "Once a transfer completes or the 5-minute timeout expires, WebRTC tunnels close and temporary buffers auto-purge. No logs, history, or digital footprint remain."
+  },
+  {
+    qTr: "Klasör gönderimi ve otomatik arşivleme destekleniyor mu?",
+    qEn: "Does it support folder transfers and automatic ZIP compression?",
+    aTr: "Evet! MephistoVault ile tüm klasörleri sürükleyip bırakarak gönderebilirsiniz. Dosyalar cihazınızda yerel olarak şifreli bir ZIP paketine dönüştürülür ve tek bir güvenli bağlantı kodu ile aktarılır.",
+    aEn: "Yes! You can drag and drop entire directory folders into MephistoVault. Files are bundled into an encrypted ZIP package locally before being sent over the secure channel."
+  },
+  {
+    qTr: "MephistoVault kullanmak için üyelik veya uygulama indirmek gerekiyor mu?",
+    qEn: "Do I need to sign up or download an app to use MephistoVault?",
+    aTr: "Hayır. MephistoVault %100 ücretsizdir, hesap açma, e-posta doğrulama veya uygulama indirme gerektirmez. Herhangi bir modern web tarayıcısında (Chrome, Firefox, Safari, Edge, Brave) anında çalışır.",
+    aEn: "No. MephistoVault is 100% free and open-source. No accounts, email sign-ups, or software downloads required. It works instantly inside any modern desktop or mobile browser."
+  }
+];
+
+export const SEOFooter = React.memo(function SEOFooter({ lang = 'en', setLang }: SEOFooterProps) {
   const isTr = lang === 'tr';
 
   // State for active accordion item filter or open state if needed, or details/summary standard with smooth CSS
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
-  const toggleFaq = (index: number) => {
-    setOpenFaqIndex(openFaqIndex === index ? null : index);
-  };
-
-  const faqItems = [
-    {
-      qTr: "MephistoVault nedir ve nasıl çalışır?",
-      qEn: "What is MephistoVault and how does it work?",
-      aTr: "MephistoVault, dosyalarınızı doğrudan tarayıcılar arasında uçtan uca şifreli (E2E) olarak aktaran sıfır iz (zero-trace) P2P (Peer-to-Peer) dosya transfer platformudur. Dosyalarınız hiçbir sunucuya yüklenmez; doğrudan alıcının cihazına aktarılır.",
-      aEn: "MephistoVault is a zero-trace P2P (Peer-to-Peer) file transfer platform that sends files directly between browsers using end-to-end encryption (E2E). Your files are never uploaded to any server; they transfer directly to the recipient's device."
-    },
-    {
-      qTr: "Dosyalarım sunucularda saklanıyor mu?",
-      qEn: "Are my files stored on any server?",
-      aTr: "Kesinlikle HAYIR. MephistoVault bulut veya veritabanı depolaması kullanmaz. Veriler doğrudan iki cihaz arasındaki WebRTC veri tünelinden aktarılır ve tarayıcı kapatıldığında bellekteki (RAM) geçici veriler otomatik olarak imha edilir.",
-      aEn: "Absolutely NOT. MephistoVault uses zero cloud or database storage. Data flows directly through an encrypted WebRTC data channel between devices. Once the connection closes, volatile RAM memory is immediately wiped."
-    },
-    {
-      qTr: "Şifreleme ne kadar güvenli? Dosyalarımı kimse görebilir mi?",
-      qEn: "How secure is the encryption? Can anyone intercept my files?",
-      aTr: "Verileriniz Web Crypto API kullanılarak PBKDF2 anahtar türetme ve askeri düzeyde AES-256-GCM algoritması ile cihazınızda şifrelenir. Bağlantı kodu olmadan şifre çözülemez. Araya giren hiç kimse, servis sağlayıcıları bile dosyalarınızın içeriğini göremez.",
-      aEn: "Your data is encrypted locally using Web Crypto API with PBKDF2 key derivation and military-grade AES-256-GCM cipher. Without the room key, decryption is mathematically impossible. Neither ISP nor middleman can read your content."
-    },
-    {
-      qTr: "Dosya boyutu veya hız sınırı var mı?",
-      qEn: "Is there any file size limit or speed capping?",
-      aTr: "Herhangi bir dosya boyutu limiti veya bant genişliği kısıtlaması yoktur. Transfer hızı tamamen sizin ve alıcının anlık internet bağlantı hızına bağlıdır.",
-      aEn: "There are no file size limits or bandwidth throttling. The transfer speed is only limited by your local network and internet bandwidth."
-    },
-    {
-      qTr: "Oturum kendini imha etme (Self-Destruct) özelliği nasıl çalışır?",
-      qEn: "How does the Burn-on-Read Self-Destruct feature work?",
-      aTr: "Transfer tamamlandıktan sonra veya 5 dakikalık zaman aşımı süresi dolduğunda, tüm WebRTC tünelleri kapatılır ve bellek sıfırlanır. Dijital ayak izi veya geçmiş kaydı kalmaz.",
-      aEn: "Once a transfer completes or the 5-minute timeout expires, WebRTC tunnels close and temporary buffers auto-purge. No logs, history, or digital footprint remain."
-    },
-    {
-      qTr: "Klasör gönderimi ve otomatik arşivleme destekleniyor mu?",
-      qEn: "Does it support folder transfers and automatic ZIP compression?",
-      aTr: "Evet! MephistoVault ile tüm klasörleri sürükleyip bırakarak gönderebilirsiniz. Dosyalar cihazınızda yerel olarak şifreli bir ZIP paketine dönüştürülür ve tek bir güvenli bağlantı kodu ile aktarılır.",
-      aEn: "Yes! You can drag and drop entire directory folders into MephistoVault. Files are bundled into an encrypted ZIP package locally before being sent over the secure channel."
-    },
-    {
-      qTr: "MephistoVault kullanmak için üyelik veya uygulama indirmek gerekiyor mu?",
-      qEn: "Do I need to sign up or download an app to use MephistoVault?",
-      aTr: "Hayır. MephistoVault %100 ücretsizdir, hesap açma, e-posta doğrulama veya uygulama indirme gerektirmez. Herhangi bir modern web tarayıcısında (Chrome, Firefox, Safari, Edge, Brave) anında çalışır.",
-      aEn: "No. MephistoVault is 100% free and open-source. No accounts, email sign-ups, or software downloads required. It works instantly inside any modern desktop or mobile browser."
-    }
-  ];
+  const toggleFaq = useCallback((index: number) => {
+    setOpenFaqIndex((prev) => (prev === index ? null : index));
+  }, []);
 
   // Generate Google Schema.org FAQPage JSON-LD
-  const faqSchema = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    "mainEntity": faqItems.map(item => ({
-      "@type": "Question",
-      "name": isTr ? item.qTr : item.qEn,
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": isTr ? item.aTr : item.aEn
-      }
-    }))
-  };
+  const faqSchemaString = useMemo(() => {
+    const schema = {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": FAQ_ITEMS.map((item) => ({
+        "@type": "Question",
+        "name": isTr ? item.qTr : item.qEn,
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": isTr ? item.aTr : item.aEn,
+        },
+      })),
+    };
+    return JSON.stringify(schema);
+  }, [isTr]);
 
   return (
-    <footer className="mt-16 border-t border-white/10 pt-12 pb-12 text-left space-y-14 w-full">
+    <footer className="mt-16 border-t border-white/10 pt-12 pb-12 text-left space-y-14 w-full content-visibility-auto">
       {/* FAQ Schema Script for Google Rich Snippets */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+        dangerouslySetInnerHTML={{ __html: faqSchemaString }}
       />
 
       {/* 1. SECTION: Primary Overview & Semantic Micro-badge */}
@@ -235,7 +239,7 @@ export const SEOFooter = React.memo(function SEOFooter({ lang = 'en' }: SEOFoote
         </div>
 
         <div className="space-y-3">
-          {faqItems.map((item, idx) => {
+          {FAQ_ITEMS.map((item, idx) => {
             const isOpen = openFaqIndex === idx;
             return (
               <div
@@ -365,19 +369,31 @@ export const SEOFooter = React.memo(function SEOFooter({ lang = 'en' }: SEOFoote
         </p>
         <div className="flex flex-wrap gap-2 text-xs">
           {[
-            { code: 'en', label: 'English', flag: '🇬🇧' },
-            { code: 'tr', label: 'Türkçe', flag: '🇹🇷' },
-            { code: 'es', label: 'Español', flag: '🇪🇸' },
-            { code: 'de', label: 'Deutsch', flag: '🇩🇪' },
-            { code: 'fr', label: 'Français', flag: '🇫🇷' },
-            { code: 'it', label: 'Italiano', flag: '🇮🇹' },
-            { code: 'pt', label: 'Português', flag: '🇵🇹' },
-            { code: 'ru', label: 'Русский', flag: '🇷🇺' },
-            { code: 'ar', label: 'العربية', flag: '🇸🇦' },
+            { code: 'en' as LangKey, label: 'English', flag: '🇬🇧' },
+            { code: 'tr' as LangKey, label: 'Türkçe', flag: '🇹🇷' },
+            { code: 'es' as LangKey, label: 'Español', flag: '🇪🇸' },
+            { code: 'de' as LangKey, label: 'Deutsch', flag: '🇩🇪' },
+            { code: 'fr' as LangKey, label: 'Français', flag: '🇫🇷' },
+            { code: 'it' as LangKey, label: 'Italiano', flag: '🇮🇹' },
+            { code: 'pt' as LangKey, label: 'Português', flag: '🇵🇹' },
+            { code: 'ru' as LangKey, label: 'Русский', flag: '🇷🇺' },
+            { code: 'ar' as LangKey, label: 'العربية', flag: '🇸🇦' },
+            { code: 'zh' as LangKey, label: '中文', flag: '🇨🇳' },
           ].map((l) => (
             <a
               key={l.code}
               href={`/?lang=${l.code}`}
+              onClick={(e) => {
+                if (setLang) {
+                  e.preventDefault();
+                  setLang(l.code);
+                  if (typeof window !== 'undefined') {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('lang', l.code);
+                    window.history.replaceState({}, '', url.toString());
+                  }
+                }
+              }}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-colors ${
                 lang === l.code
                   ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 font-bold'

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Upload,
@@ -98,21 +98,24 @@ export const SendView = React.memo(function SendView({
   const [quickTextContent, setQuickTextContent] = useState('');
   const [isQRLightboxOpen, setIsQRLightboxOpen] = useState(false);
 
-  const handleQuickTextSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!quickTextContent.trim()) return;
-    const blob = new Blob([quickTextContent], { type: 'text/plain;charset=utf-8' });
-    const noteFile = new File(
-      [blob],
-      `secret-note-${Date.now().toString().slice(-4)}.txt`,
-      { type: 'text/plain' },
-    );
-    setFileToShare(noteFile);
-    setQuickTextContent('');
-    setShowQuickTextModal(false);
-  };
+  const handleQuickTextSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!quickTextContent.trim()) return;
+      const blob = new Blob([quickTextContent], { type: 'text/plain;charset=utf-8' });
+      const noteFile = new File(
+        [blob],
+        `secret-note-${Date.now().toString().slice(-4)}.txt`,
+        { type: 'text/plain' },
+      );
+      setFileToShare(noteFile);
+      setQuickTextContent('');
+      setShowQuickTextModal(false);
+    },
+    [quickTextContent, setFileToShare],
+  );
 
-  const handleInstantCamera = async () => {
+  const handleInstantCamera = useCallback(async () => {
     let stream: MediaStream | null = null;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -150,9 +153,9 @@ export const SendView = React.memo(function SendView({
         stream.getTracks().forEach((t) => t.stop());
       }
     }
-  };
+  }, [setFileToShare]);
 
-  const handleInstantScreen = async () => {
+  const handleInstantScreen = useCallback(async () => {
     let stream: MediaStream | null = null;
     try {
       stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
@@ -186,7 +189,7 @@ export const SendView = React.memo(function SendView({
         stream.getTracks().forEach((t) => t.stop());
       }
     }
-  };
+  }, [setFileToShare]);
 
   return (
     <motion.div
@@ -314,29 +317,29 @@ export const SendView = React.memo(function SendView({
                   type="button"
                   onClick={() => setShowQuickTextModal(true)}
                   className="flex items-center gap-2 px-3.5 py-2 bg-white/5 hover:bg-purple-500/20 border border-white/10 hover:border-purple-500/30 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-                  aria-label="Quick text share"
+                  aria-label={t('quickText')}
                 >
-                  ⚡ Hızlı Metin
+                  <span>{t('quickText')}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleInstantCamera}
                   className="flex items-center gap-2 px-3.5 py-2 bg-white/5 hover:bg-pink-500/20 border border-white/10 hover:border-pink-500/30 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-pink-500/50"
-                  title="Cihaza kaydetmeden anlık fotoğraf çekip gönder"
-                  aria-label="Take instant photo to share"
+                  title={t('instantPhoto')}
+                  aria-label={t('instantPhoto')}
                 >
-                  <Camera className="w-4 h-4 text-pink-400" /> 📸 Anlık Foto
+                  <Camera className="w-4 h-4 text-pink-400" /> <span>{t('instantPhoto')}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleInstantScreen}
                   className="flex items-center gap-2 px-3.5 py-2 bg-white/5 hover:bg-blue-500/20 border border-white/10 hover:border-blue-500/30 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                  title="Cihaza kaydetmeden ekran görüntüsü alıp gönder"
-                  aria-label="Capture screen to share"
+                  title={t('screenCapture')}
+                  aria-label={t('screenCapture')}
                 >
-                  <Monitor className="w-4 h-4 text-blue-400" /> 🖥️ Ekran Yakala
+                  <Monitor className="w-4 h-4 text-blue-400" /> <span>{t('screenCapture')}</span>
                 </button>
               </div>
 
@@ -352,7 +355,7 @@ export const SendView = React.memo(function SendView({
                     aria-label="Quick Text Share Dialog"
                   >
                     <div className="flex items-center justify-between text-xs font-bold text-purple-300">
-                      <span>⚡ Hızlı Metin Paylaşımı (RAM Üzerinden)</span>
+                      <span>{t('quickTextTitle')}</span>
                       <button
                         type="button"
                         onClick={() => setShowQuickTextModal(false)}
@@ -366,7 +369,7 @@ export const SendView = React.memo(function SendView({
                       <textarea
                         value={quickTextContent}
                         onChange={(e) => setQuickTextContent(e.target.value)}
-                        placeholder="Paylaşmak istediğiniz metin veya şifreyi yazın..."
+                        placeholder={t('quickTextPlaceholder')}
                         className="w-full h-28 bg-black/50 border border-white/10 rounded-xl p-3 text-xs font-mono text-white focus:outline-none focus:border-purple-500/50 resize-none"
                         autoFocus
                       />
@@ -376,14 +379,14 @@ export const SendView = React.memo(function SendView({
                           onClick={() => setShowQuickTextModal(false)}
                           className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-bold text-slate-300 cursor-pointer"
                         >
-                          İptal
+                          {t('cancel')}
                         </button>
                         <button
                           type="submit"
                           disabled={!quickTextContent.trim()}
                           className="px-4 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-xs font-bold text-white cursor-pointer"
                         >
-                          Paylaş
+                          {t('share')}
                         </button>
                       </div>
                     </form>
@@ -417,19 +420,31 @@ export const SendView = React.memo(function SendView({
             {/* Expiration Timer Selector */}
             <div className="w-full mb-6 bg-white/[0.02] border border-white/5 p-3 rounded-2xl flex items-center justify-between">
               <span className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-emerald-400" /> Otomatik İmha Süresi:
+                <Clock className="w-3.5 h-3.5 text-emerald-400" /> {t('autoDestructTime')}
               </span>
               <select
                 value={expirationSec}
                 onChange={(e) => setExpirationSec && setExpirationSec(Number(e.target.value))}
                 className="bg-black/60 border border-white/10 text-emerald-400 text-xs font-bold font-mono px-3 py-1.5 rounded-xl focus:outline-none focus:border-emerald-500 cursor-pointer"
-                aria-label="Select Auto Destruct Time"
+                aria-label={t('autoDestructTime')}
               >
-                {EXPIRATION_OPTIONS.map((opt) => (
-                  <option key={opt.id} value={opt.sec} className="bg-slate-900 text-white">
-                    {opt.label}
-                  </option>
-                ))}
+                {EXPIRATION_OPTIONS.map((opt) => {
+                  const label =
+                    opt.id === 'burn'
+                      ? t('burnOnRead')
+                      : opt.id === '10m'
+                      ? t('exp10m')
+                      : opt.id === '1h'
+                      ? t('exp1h')
+                      : opt.id === '24h'
+                      ? t('exp24h')
+                      : opt.label;
+                  return (
+                    <option key={opt.id} value={opt.sec} className="bg-slate-900 text-white">
+                      {label}
+                    </option>
+                  );
+                })}
               </select>
             </div>
 
@@ -438,7 +453,7 @@ export const SendView = React.memo(function SendView({
               <div className="w-full mb-6 p-3 bg-purple-500/10 border border-purple-500/20 rounded-2xl flex items-center justify-between">
                 <div className="flex items-center gap-2 text-purple-300 text-xs font-bold font-mono">
                   <Radio className="w-4 h-4 text-purple-400 animate-pulse" />
-                  <span>Phantom Voice (P2P Telsiz)</span>
+                  <span>{t('phantomVoice')}</span>
                 </div>
                 <button
                   type="button"
@@ -451,7 +466,7 @@ export const SendView = React.memo(function SendView({
                   aria-label={isVoiceActive ? 'Disable Microphone' : 'Enable Microphone'}
                   aria-pressed={isVoiceActive}
                 >
-                  <Mic className="w-3.5 h-3.5" /> {isVoiceActive ? '🎙️ Mik Kapat' : '🎙️ Konuş / Dinle'}
+                  <Mic className="w-3.5 h-3.5" /> {isVoiceActive ? t('micMute') : t('micActive')}
                 </button>
               </div>
             )}
@@ -469,7 +484,20 @@ export const SendView = React.memo(function SendView({
               <div className="text-center mb-6 w-full">
                 <p className="text-sm text-slate-400 mb-4">{t('shareCode')}</p>
                 <div className="flex items-center gap-2 justify-center">
-                  <div className="bg-black/60 border border-white/10 px-6 py-4 rounded-xl font-mono text-3xl font-black tracking-widest text-emerald-500 shadow-inner">
+                  <div
+                    onClick={onCopy}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onCopy();
+                      }
+                    }}
+                    className="bg-black/60 hover:bg-black/80 border border-white/10 hover:border-emerald-500/50 px-6 py-4 rounded-xl font-mono text-3xl font-black tracking-widest text-emerald-500 shadow-inner cursor-pointer transition-all select-all flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    title={t('copy')}
+                    aria-label="Room code, click to copy invite link"
+                  >
                     {shareCode}
                   </div>
                   <div className="flex flex-col gap-2">
@@ -517,8 +545,8 @@ export const SendView = React.memo(function SendView({
                         <button
                           onClick={() => setIsQRLightboxOpen(true)}
                           className="bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 p-3 rounded-xl transition-colors group cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                          title="Büyüt (Lightbox)"
-                          aria-label="QR Kodu Büyüt"
+                          title={t('zoomLightbox')}
+                          aria-label={t('zoomLightbox')}
                         >
                           <Maximize2 className="w-5 h-5 text-emerald-400 group-hover:text-emerald-300" />
                         </button>
@@ -547,8 +575,8 @@ export const SendView = React.memo(function SendView({
                           }
                         }}
                         className="bg-slate-950/90 border border-emerald-500/30 p-5 rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.25)] hover:border-emerald-400/70 hover:shadow-[0_0_40px_rgba(16,185,129,0.4)] transition-all relative group cursor-pointer overflow-hidden"
-                        title="Büyütmek için tıklayın (Lightbox)"
-                        aria-label="QR Kodu Büyüt (Lightbox)"
+                        title={t('zoomHint')}
+                        aria-label={t('zoomLightbox')}
                       >
                         {/* Cyberpunk HUD Corner Accents */}
                         <div className="absolute top-2 left-2 w-3 h-3 border-t-2 border-l-2 border-emerald-500/80 group-hover:border-emerald-400 transition-colors" />
@@ -559,7 +587,7 @@ export const SendView = React.memo(function SendView({
                         {/* Hover Overlay Hint */}
                         <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-2 text-emerald-400 font-mono text-xs font-bold z-10">
                           <Maximize2 className="w-6 h-6 animate-bounce" />
-                          <span>🔍 Büyüt (Lightbox)</span>
+                          <span>{t('zoomLightbox')}</span>
                         </div>
 
                         {/* High Error Tolerance Cyberpunk QR Code */}
@@ -577,7 +605,7 @@ export const SendView = React.memo(function SendView({
                       {/* Cyberpunk HUD Subtext */}
                       <div className="flex items-center gap-2 text-[11px] font-mono text-emerald-400/90">
                         <Maximize2 className="w-3.5 h-3.5" />
-                        <span>Büyütmek için tıklayın • Yüksek Hata Toleransı (H)</span>
+                        <span>{t('zoomHint')}</span>
                       </div>
 
                       {/* Direct Share Buttons */}
@@ -590,7 +618,7 @@ export const SendView = React.memo(function SendView({
                               try {
                                 await navigator.share({
                                   title: 'MephistoVault',
-                                  text: '🔐 MephistoVault ile şifreli dosya aktarımı bağlantısı:',
+                                  text: `${t('shareTextPrefix')}\n`,
                                   url: shareUrl,
                                 });
                               } catch (err: unknown) {
@@ -600,22 +628,22 @@ export const SendView = React.memo(function SendView({
                               }
                             }}
                             className="flex items-center gap-1.5 px-3 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 rounded-xl text-xs font-bold text-emerald-300 transition-colors cursor-pointer"
-                            title="Web Share API ile Paylaş"
-                            aria-label="Web Share API ile Paylaş"
+                            title={t('directShare')}
+                            aria-label={t('directShare')}
                           >
-                            <Share2 className="w-3.5 h-3.5" /> Direct Paylaş
+                            <Share2 className="w-3.5 h-3.5" /> {t('directShare')}
                           </button>
                         )}
 
                         <a
                           href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                            `🔐 MephistoVault ile şifreli dosya aktarımı bağlantısı:\n${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`
+                            `${t('shareTextPrefix')}\n${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`
                           )}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-1.5 px-3 py-2 bg-green-600/20 hover:bg-green-600/30 border border-green-500/40 rounded-xl text-xs font-bold text-green-400 transition-colors cursor-pointer"
-                          title="WhatsApp ile Paylaş"
-                          aria-label="WhatsApp ile Paylaş"
+                          title="WhatsApp"
+                          aria-label="WhatsApp"
                         >
                           <Send className="w-3.5 h-3.5 text-green-400" /> WhatsApp
                         </a>
@@ -623,25 +651,25 @@ export const SendView = React.memo(function SendView({
                         <a
                           href={`https://t.me/share/url?url=${encodeURIComponent(
                             `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`
-                          )}&text=${encodeURIComponent('🔐 MephistoVault ile şifreli dosya aktarımı bağlantısı:')}`}
+                          )}&text=${encodeURIComponent(t('shareTextPrefix'))}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-1.5 px-3 py-2 bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 rounded-xl text-xs font-bold text-sky-300 transition-colors cursor-pointer"
-                          title="Telegram ile Paylaş"
-                          aria-label="Telegram ile Paylaş"
+                          title="Telegram"
+                          aria-label="Telegram"
                         >
                           <Send className="w-3.5 h-3.5 text-sky-300" /> Telegram
                         </a>
 
                         <a
-                          href={`mailto:?subject=${encodeURIComponent('MephistoVault Şifreli Dosya Bağlantısı')}&body=${encodeURIComponent(
-                            `🔐 MephistoVault ile şifreli dosya aktarımı bağlantısı:\n\n${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`
+                          href={`mailto:?subject=${encodeURIComponent('MephistoVault Secure Vault Link')}&body=${encodeURIComponent(
+                            `${t('shareTextPrefix')}\n\n${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`
                           )}`}
                           className="flex items-center gap-1.5 px-3 py-2 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 rounded-xl text-xs font-bold text-purple-300 transition-colors cursor-pointer"
-                          title="E-posta ile Paylaş"
-                          aria-label="E-posta ile Paylaş"
+                          title={t('emailShare')}
+                          aria-label={t('emailShare')}
                         >
-                          <Mail className="w-3.5 h-3.5 text-purple-300" /> E-posta
+                          <Mail className="w-3.5 h-3.5 text-purple-300" /> {t('emailShare')}
                         </a>
                       </div>
                     </motion.div>
@@ -735,12 +763,12 @@ export const SendView = React.memo(function SendView({
               <div className="flex items-center justify-between mb-5 border-b border-emerald-500/20 pb-3">
                 <div className="flex items-center gap-2 text-emerald-400 font-mono font-bold text-sm">
                   <Maximize2 className="w-4 h-4" />
-                  <span>CYBERPUNK QR LIGHTBOX</span>
+                  <span>{t('zoomLightbox').toUpperCase()}</span>
                 </div>
                 <button
                   onClick={() => setIsQRLightboxOpen(false)}
                   className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
-                  aria-label="Close modal"
+                  aria-label={t('close')}
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -767,9 +795,10 @@ export const SendView = React.memo(function SendView({
                 <button
                   onClick={onCopy}
                   className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 rounded-xl text-xs font-bold text-emerald-300 cursor-pointer transition-all"
+                  aria-label={copied ? t('copied') : t('copy')}
                 >
                   {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-                  <span>{copied ? 'Kopyalandı' : 'Kopyala'}</span>
+                  <span>{copied ? t('copied') : t('copy')}</span>
                 </button>
               </div>
 
@@ -787,7 +816,7 @@ export const SendView = React.memo(function SendView({
                   onClick={() => setIsQRLightboxOpen(false)}
                   className="px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white font-bold rounded-xl text-sm transition-colors cursor-pointer"
                 >
-                  Kapat
+                  {t('close')}
                 </button>
               </div>
             </motion.div>

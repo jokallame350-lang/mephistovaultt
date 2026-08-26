@@ -156,7 +156,7 @@ export const ReceiveView = React.memo(function ReceiveView({
     const errMsg = (error as { message?: string })?.message || String(error || '');
 
     let type: 'permission' | 'not_found' | 'occupied' | 'unknown' = 'unknown';
-    let message = 'Kamera erişiminde sorun oluştu.';
+    let message = t('camError');
 
     if (
       errName === 'NotAllowedError' ||
@@ -164,27 +164,27 @@ export const ReceiveView = React.memo(function ReceiveView({
       /permission|denied|not allowed|allowed/i.test(errMsg)
     ) {
       type = 'permission';
-      message = 'Kamera İzni Reddedildi: Tarayıcı ayarlarınızdan kamera erişimine izin verin veya oda kodunu manuel girin.';
+      message = t('camDenied');
     } else if (
       errName === 'NotFoundError' ||
       errName === 'DevicesNotFoundError' ||
       /not found|no camera|no media|device/i.test(errMsg)
     ) {
       type = 'not_found';
-      message = 'Kamera Bulunamadı: Cihazınızda aktif veya uyumlu bir kamera tespit edilemedi.';
+      message = t('camNotFound');
     } else if (
       errName === 'NotReadableError' ||
       errName === 'TrackStartError' ||
       /in use|readable|start/i.test(errMsg)
     ) {
       type = 'occupied';
-      message = 'Kamera Kullanımda: Kamera başka bir uygulama veya sekme tarafından kullanılıyor olabilir.';
+      message = t('camInUse');
     } else {
-      message = `Kamera Hatası: ${errMsg || 'Kamera görüntüsü alınamadı.'}`;
+      message = `${t('camError')}: ${errMsg}`;
     }
 
     setCameraError({ type, message });
-  }, []);
+  }, [t]);
 
   const handleManualInputRedirect = React.useCallback(() => {
     setShowQRScanner(false);
@@ -205,12 +205,17 @@ export const ReceiveView = React.memo(function ReceiveView({
     isScanningRef.current = false;
   }, []);
 
-  const handleFormSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (receiveCode.length >= 11) {
-      onConnect(receiveCode);
-    }
-  };
+  const handleFormSubmit = React.useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      const clean = parseRoomCode(receiveCode) || receiveCode.trim();
+      if (clean.length >= 6) {
+        setReceiveCode(clean);
+        onConnect(clean);
+      }
+    },
+    [receiveCode, setReceiveCode, onConnect],
+  );
 
   const safetyReport = React.useMemo(() => {
     if (!completedFile) return null;
@@ -249,10 +254,13 @@ export const ReceiveView = React.memo(function ReceiveView({
             <div className="flex gap-2 w-full max-w-sm mx-auto">
               <button
                 type="button"
-                onClick={() => onConnect(receiveCode)}
+                onClick={() => {
+                  const clean = parseRoomCode(receiveCode) || receiveCode.trim();
+                  if (clean) onConnect(clean);
+                }}
                 className="flex-1 bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/40 text-cyan-300 font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
               >
-                <RefreshCw className="w-4 h-4" /> Yeniden Bağlan
+                <RefreshCw className="w-4 h-4" /> {t('reconnect')}
               </button>
               <button
                 type="button"
@@ -261,7 +269,7 @@ export const ReceiveView = React.memo(function ReceiveView({
                 }}
                 className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
               >
-                ✏️ Kodu Değiştir
+                {t('changeCode')}
               </button>
             </div>
           </div>
@@ -280,7 +288,7 @@ export const ReceiveView = React.memo(function ReceiveView({
                     type="text"
                     value={receiveCode}
                     onChange={(e) => setReceiveCode(e.target.value)}
-                    placeholder="vault-xxxx-xxxx"
+                    placeholder="abc-xyz#1234"
                     className={`w-full bg-black/40 border rounded-2xl py-3.5 px-4 text-white placeholder-slate-600 focus:outline-none font-mono text-center tracking-wider transition-all ${
                       isInputHighlighted
                         ? 'border-cyan-400 ring-2 ring-cyan-400/50 bg-cyan-950/20'
@@ -302,7 +310,7 @@ export const ReceiveView = React.memo(function ReceiveView({
 
               <button
                 type="submit"
-                disabled={receiveCode.length < 11}
+                disabled={receiveCode.trim().length < 6}
                 className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3.5 px-6 rounded-2xl transition-all shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_30px_rgba(6,182,212,0.5)] cursor-pointer"
               >
                 {t('connect')}
@@ -320,7 +328,7 @@ export const ReceiveView = React.memo(function ReceiveView({
                   <div className="p-3 bg-cyan-500/10 flex items-center justify-between border-b border-cyan-500/20">
                     <div className="flex items-center gap-2 text-cyan-400 text-xs font-bold font-mono">
                       <Camera className={`w-4 h-4 ${!isCameraPaused && !cameraError ? 'animate-pulse' : ''}`} />
-                      <span>QR Tara (Otomatik Bağlan)</span>
+                      <span>{t('qrScanAuto')}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       {!cameraError && (
@@ -328,18 +336,18 @@ export const ReceiveView = React.memo(function ReceiveView({
                           type="button"
                           onClick={() => setIsCameraPaused(!isCameraPaused)}
                           className="flex items-center gap-1 text-xs text-slate-300 hover:text-cyan-300 bg-white/5 hover:bg-cyan-500/20 border border-white/10 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-                          title={isCameraPaused ? 'Kamerayı Başlat' : 'Kamerayı Duraklat'}
-                          aria-label={isCameraPaused ? 'Kamerayı Başlat' : 'Kamerayı Duraklat'}
+                          title={isCameraPaused ? t('resumeScanner') : t('pauseScanner')}
+                          aria-label={isCameraPaused ? t('resumeScanner') : t('pauseScanner')}
                         >
                           {isCameraPaused ? (
                             <>
                               <Play className="w-3.5 h-3.5 text-green-400" />
-                              <span>Başlat</span>
+                              <span>{t('resumeScanner')}</span>
                             </>
                           ) : (
                             <>
                               <Pause className="w-3.5 h-3.5 text-amber-400" />
-                              <span>Duraklat</span>
+                              <span>{t('pauseScanner')}</span>
                             </>
                           )}
                         </button>
@@ -348,7 +356,7 @@ export const ReceiveView = React.memo(function ReceiveView({
                         type="button"
                         onClick={() => setShowQRScanner(false)}
                         className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
-                        aria-label="Tarayıcıyı Kapat"
+                        aria-label={t('close')}
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -364,12 +372,12 @@ export const ReceiveView = React.memo(function ReceiveView({
                         <div className="space-y-1">
                           <h3 className="text-red-400 font-bold text-sm">
                             {cameraError.type === 'permission'
-                              ? 'Kamera İzni Engellendi'
+                              ? t('camDenied')
                               : cameraError.type === 'not_found'
-                              ? 'Kamera Bulunamadı'
+                              ? t('camNotFound')
                               : cameraError.type === 'occupied'
-                              ? 'Kamera Meşgul'
-                              : 'Kamera Başlatılamadı'}
+                              ? t('camInUse')
+                              : t('camError')}
                           </h3>
                           <p className="text-slate-300 text-xs leading-relaxed">{cameraError.message}</p>
                         </div>
@@ -380,27 +388,27 @@ export const ReceiveView = React.memo(function ReceiveView({
                             onClick={handleManualInputRedirect}
                             className="w-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 font-bold text-xs py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-cyan-500/10"
                           >
-                            <Keyboard className="w-4 h-4 text-cyan-400" /> Manuel Kod Girişine Geç
+                            <Keyboard className="w-4 h-4 text-cyan-400" /> {t('switchToManual')}
                           </button>
                           <button
                             type="button"
                             onClick={handleRetryCamera}
                             className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 font-medium text-xs py-2 px-4 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
                           >
-                            <RefreshCw className="w-3.5 h-3.5" /> Kamerayı Yeniden Dene
+                            <RefreshCw className="w-3.5 h-3.5" /> {t('retryCamera')}
                           </button>
                         </div>
                       </div>
                     ) : isCameraPaused ? (
                       <div className="p-8 text-center space-y-3">
                         <CameraOff className="w-10 h-10 text-slate-500 mx-auto" />
-                        <p className="text-slate-400 text-xs font-mono">Kamera Taraması Duraklatıldı</p>
+                        <p className="text-slate-400 text-xs font-mono">{t('scannerPaused')}</p>
                         <button
                           type="button"
                           onClick={() => setIsCameraPaused(false)}
                           className="bg-cyan-500 hover:bg-cyan-400 text-white font-bold text-xs py-2 px-4 rounded-xl transition-all flex items-center gap-2 mx-auto cursor-pointer"
                         >
-                          <Play className="w-4 h-4" /> Taramayı Devam Ettir
+                          <Play className="w-4 h-4" /> {t('resumeScanBtn')}
                         </button>
                       </div>
                     ) : (
@@ -426,13 +434,13 @@ export const ReceiveView = React.memo(function ReceiveView({
                           styles={{ container: { minHeight: 300, background: 'black' } }}
                         />
                         <div className="p-3 bg-black/80 border-t border-white/5 flex items-center justify-between text-xs text-slate-400">
-                          <span className="font-mono text-[11px]">QR kodunu kareye hizalayın</span>
+                          <span className="font-mono text-[11px]">{t('alignQRHint')}</span>
                           <button
                             type="button"
                             onClick={handleManualInputRedirect}
                             className="text-cyan-400 hover:underline flex items-center gap-1 font-mono text-[11px] cursor-pointer"
                           >
-                            <Keyboard className="w-3 h-3" /> Manuel Kod Gir
+                            <Keyboard className="w-3 h-3" /> {t('switchToManual')}
                           </button>
                         </div>
                       </div>
@@ -449,7 +457,7 @@ export const ReceiveView = React.memo(function ReceiveView({
               <div className="w-full mb-6 p-3 bg-purple-500/10 border border-purple-500/20 rounded-2xl flex items-center justify-between">
                 <div className="flex items-center gap-2 text-purple-300 text-xs font-bold font-mono">
                   <Radio className="w-4 h-4 text-purple-400 animate-pulse" />
-                  <span>Phantom Voice (P2P Telsiz)</span>
+                  <span>{t('phantomVoice')}</span>
                 </div>
                 <button
                   type="button"
@@ -462,7 +470,7 @@ export const ReceiveView = React.memo(function ReceiveView({
                   aria-label={isVoiceActive ? 'Disable Microphone' : 'Enable Microphone'}
                   aria-pressed={isVoiceActive}
                 >
-                  <Mic className="w-3.5 h-3.5" /> {isVoiceActive ? '🎙️ Mik Kapat' : '🎙️ Konuş / Dinle'}
+                  <Mic className="w-3.5 h-3.5" /> {isVoiceActive ? t('micMute') : t('micActive')}
                 </button>
               </div>
             )}
@@ -487,8 +495,8 @@ export const ReceiveView = React.memo(function ReceiveView({
                   >
                     <AlertTriangle className="w-5 h-5 shrink-0 text-amber-400 mt-0.5" />
                     <div>
-                      <p className="font-bold text-amber-300">⚠️ DİKKAT: Potansiyel Tehlikeli Çalıştırılabilir Dosya!</p>
-                      <p className="text-slate-400 mt-0.5">Bu dosya bir script veya program uzantısına (`.exe / .bat / .vbs`) sahip. Yalnızca güvendiğiniz kişilerden gelen dosyaları açın.</p>
+                      <p className="font-bold text-amber-300">{t('dangerousExtWarning')}</p>
+                      <p className="text-slate-400 mt-0.5">{t('dangerousExtDesc')}</p>
                     </div>
                   </div>
                 )}
@@ -546,7 +554,7 @@ export const ReceiveView = React.memo(function ReceiveView({
                   >
                     <div className="flex items-center justify-between font-bold text-sm">
                       <span className="flex items-center gap-1.5">
-                        <Shield className="w-4 h-4" /> 🛡️ Sandbox Analizi
+                        <Shield className="w-4 h-4" /> {t('sandboxAnalysis')}
                       </span>
                       <span>{safetyReport.label}</span>
                     </div>
@@ -581,7 +589,7 @@ export const ReceiveView = React.memo(function ReceiveView({
                     onClick={async () => {
                       try {
                         await saveToMemoryVault(completedFile.blob, completedFile.name, completedFile.type);
-                        alert('💾 Dosya cihaza indirilmeden şifreli tarayıcı hafıza kasasına alındı! İstediğiniz an silebilirsiniz.');
+                        alert(t('memoryVaultAlert'));
                         if (handleBurnOnDownload) handleBurnOnDownload();
                       } catch (err: unknown) {
                         const message = err instanceof Error ? err.message : String(err);
@@ -589,9 +597,9 @@ export const ReceiveView = React.memo(function ReceiveView({
                       }
                     }}
                     className="bg-white/5 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-500/30 text-cyan-300 hover:text-cyan-100 font-bold py-2.5 px-4 w-full rounded-2xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer"
-                    title="Cihazın İndirilenler klasöründe iz bırakmadan gizli tarayıcı hafızasına sakla"
+                    title={t('memoryVaultSave')}
                   >
-                    <Database className="w-4 h-4 text-cyan-400" /> 💾 Diske Yazmadan Geçici Kasaya Sakla
+                    <Database className="w-4 h-4 text-cyan-400" /> {t('memoryVaultSave')}
                   </button>
                 </div>
 
@@ -657,10 +665,10 @@ export const ReceiveView = React.memo(function ReceiveView({
                                       }
                                     }}
                                     className="px-2 py-1 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 shrink-0 cursor-pointer"
-                                    title="Bu dosyayı tek başına indir"
+                                    title={t('downloadSingle')}
                                     aria-label={`Download file ${f.name} individually`}
                                   >
-                                    <Download className="w-3 h-3" /> Tek İndir
+                                    <Download className="w-3 h-3" /> {t('downloadSingle')}
                                   </button>
                                 )}
                               </div>

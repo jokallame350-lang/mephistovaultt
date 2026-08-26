@@ -26,8 +26,13 @@ export function formatSpeed(bytesPerSec: number): string {
 
 export function formatETA(seconds: number): string {
   if (seconds === Infinity || isNaN(seconds) || seconds < 0) return '--:--';
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
+  const totalSecs = Math.round(seconds);
+  const h = Math.floor(totalSecs / 3600);
+  const m = Math.floor((totalSecs % 3600) / 60);
+  const s = totalSecs % 60;
+  if (h > 0) {
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}s`;
 }
 
@@ -77,88 +82,91 @@ export function generateCode(): string {
 
 /**
  * Cleanly extract room code from raw scanned QR string, URL, query param, or hash fragment.
- * Supports: room=, ?room=, #hash, full URLs, and direct room codes.
+ * Supports: room=, code=, id=, ?room=, #hash, full URLs, and direct room codes with or without PIN.
  */
 export function parseRoomCode(rawInput: string): string {
   if (!rawInput) return '';
   let str = rawInput.trim();
 
-  // Decode URI component first if whole string is encoded
+  // Strip wrapping quotes or brackets
+  str = str.replace(/^["'<`]+|["'>`]+$/g, '').trim();
+
+  // Try parsing as URL or URL path/query
   try {
-    if (str.includes('%')) {
-      const decoded = decodeURIComponent(str);
-      if (decoded.includes('room=')) {
-        str = decoded;
+    const isFullUrl = /^https?:\/\//i.test(str);
+    const dummyBase = 'https://mephisto.vault';
+    const parsedUrl = new URL(isFullUrl ? str : `${dummyBase}/${str.replace(/^\/+/, '')}`);
+
+    const roomParam =
+      parsedUrl.searchParams.get('room') ||
+      parsedUrl.searchParams.get('code') ||
+      parsedUrl.searchParams.get('id');
+
+    if (roomParam) {
+      let code = decodeURIComponent(roomParam).trim();
+      // If code doesn't contain PIN '#' and URL hash exists, append hash as PIN
+      if (parsedUrl.hash && !code.includes('#')) {
+        const hashClean = decodeURIComponent(parsedUrl.hash.replace(/^#\/?/, '')).trim();
+        if (hashClean && !hashClean.includes('=')) {
+          code = `${code}#${hashClean}`;
+        }
+      }
+      return code.trim();
+    }
+
+    // Check pathname like /room/abc-xyz#1234 or /abc-xyz#1234
+    if (isFullUrl && parsedUrl.pathname && parsedUrl.pathname !== '/') {
+      const cleanPath = decodeURIComponent(parsedUrl.pathname.replace(/^\/(?:room\/)?/, '')).trim();
+      if (cleanPath) {
+        let res = cleanPath;
+        if (parsedUrl.hash && !res.includes('#')) {
+          const hashClean = decodeURIComponent(parsedUrl.hash.replace(/^#\/?/, '')).trim();
+          if (hashClean && !hashClean.includes('=')) res = `${res}#${hashClean}`;
+        }
+        return res;
+      }
+    }
+
+    // Check hash parameters like #room=CODE or #code=CODE or #/room/CODE or #CODE
+    if (parsedUrl.hash) {
+      const rawHash = decodeURIComponent(parsedUrl.hash.replace(/^#\/?/, '')).trim();
+      if (rawHash.includes('room=')) {
+        return rawHash.split('room=')[1].split('&')[0].trim();
+      } else if (rawHash.includes('code=')) {
+        return rawHash.split('code=')[1].split('&')[0].trim();
+      } else if (rawHash.includes('id=')) {
+        return rawHash.split('id=')[1].split('&')[0].trim();
+      } else if (rawHash.startsWith('room/')) {
+        return rawHash.replace(/^room\//, '').trim();
+      } else if (isFullUrl && rawHash && !rawHash.includes('=')) {
+        return rawHash;
       }
     }
   } catch {
-    // Ignore decoding error
+    // Fall back to regex / string manipulation
   }
 
-  // 1. Handle room= param explicitly (whether in query string or URL)
-  if (str.includes('room=')) {
-    const afterRoom = str.split('room=')[1];
-    if (afterRoom) {
-      let paramValue = afterRoom.split('&')[0];
-      try {
-        paramValue = decodeURIComponent(paramValue);
-      } catch {
-        // ignore
-      }
-      str = paramValue;
-    }
-  }
-  // 2. Handle URL format (http/https)
-  else if (/^https?:\/\//i.test(str)) {
+  // Regex extract room=, code=, id= from query string or snippet
+  const paramMatch = str.match(/(?:[?&]|\b)(?:room|code|id)=([^& \n\r\t]+)/i);
+  if (paramMatch && paramMatch[1]) {
     try {
-      const url = new URL(str);
-      let roomParam = url.searchParams.get('room') || url.searchParams.get('code') || url.searchParams.get('id');
-      if (roomParam) {
-        try {
-          roomParam = decodeURIComponent(roomParam);
-        } catch {
-          // ignore
-        }
-        if (url.hash && !roomParam.includes('#')) {
-          str = `${roomParam}${url.hash}`;
-        } else {
-          str = roomParam;
-        }
-      } else if (url.hash) {
-        const hashContent = decodeURIComponent(url.hash.replace(/^#\/?/, '')).trim();
-        if (hashContent.includes('room=')) {
-          str = hashContent.split('room=')[1].split('&')[0];
-        } else if (hashContent.startsWith('room/')) {
-          str = hashContent.replace(/^room\//, '');
-        } else {
-          str = hashContent;
-        }
-      } else if (url.pathname && url.pathname !== '/') {
-        const cleanPath = url.pathname.replace(/^\/(?:room\/)?/, '');
-        if (cleanPath) {
-          str = cleanPath;
-        }
-      }
+      return decodeURIComponent(paramMatch[1]).trim();
     } catch {
-      // Fallback to raw string
-    }
-  }
-  // 3. Handle raw ?room= or # or ? prefixes
-  else {
-    if (str.startsWith('?room=')) {
-      str = str.substring(6).split('&')[0];
-    } else if (str.startsWith('?')) {
-      str = str.substring(1).split('&')[0];
-    } else if (str.startsWith('#')) {
-      str = str.replace(/^#\/?(?:room\/)?/, '');
+      return paramMatch[1].trim();
     }
   }
 
-  // Final decode attempt and trim
+  // Strip leading ? or #
+  if (str.startsWith('?')) {
+    str = str.substring(1).split('&')[0];
+  } else if (str.startsWith('#')) {
+    str = str.replace(/^#\/?(?:room\/)?/, '');
+  }
+
   try {
     str = decodeURIComponent(str);
   } catch {
-    // preserve as is
+    // preserve
   }
 
   return str.trim();

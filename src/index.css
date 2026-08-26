@@ -38,10 +38,13 @@
   background: rgba(255, 255, 255, 0.2);
 }
 
-/* Custom effects */
+/* Custom effects with GPU Acceleration */
 .glass-panel {
-  @apply bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-3xl transition-all duration-300;
+  @apply bg-white/[0.03] backdrop-blur-md border border-white/10 rounded-3xl;
   box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .radar-sweep {
@@ -51,41 +54,51 @@
   border-radius: 50%;
   background: conic-gradient(from 0deg, transparent 70%, rgba(16, 185, 129, 0.2) 100%);
   animation: sweep 4s linear infinite;
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  pointer-events: none;
 }
 
 @keyframes sweep {
   0% {
-    transform: rotate(0deg);
+    transform: rotate(0deg) translateZ(0);
   }
 
   100% {
-    transform: rotate(360deg);
+    transform: rotate(360deg) translateZ(0);
   }
 }
 
-/* Light Theme */
+/* Light Theme High-Contrast Overrides */
 .light-theme body,
 .light-theme {
-  background-color: #fafafa !important;
+  background-color: #f8fafc !important;
   background-image:
-    radial-gradient(circle at 100% 0%, rgba(99, 102, 241, 0.05) 0%, transparent 40%),
-    radial-gradient(circle at 0% 100%, rgba(236, 72, 153, 0.05) 0%, transparent 40%) !important;
+    radial-gradient(circle at 100% 0%, rgba(99, 102, 241, 0.07) 0%, transparent 40%),
+    radial-gradient(circle at 0% 100%, rgba(236, 72, 153, 0.07) 0%, transparent 40%),
+    radial-gradient(circle at 50% 50%, rgba(14, 165, 233, 0.04) 0%, transparent 60%) !important;
   color: #0f172a !important;
 }
 
 .light-theme .glass-panel {
-  background: rgba(255, 255, 255, 0.6) !important;
-  backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.8) !important;
-  box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(226, 232, 240, 0.9) !important;
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.03) !important;
 }
 
 .light-theme .text-white {
+  color: #0f172a !important;
+}
+
+.light-theme .text-slate-200 {
   color: #1e293b !important;
 }
 
 .light-theme .text-slate-300 {
-  color: #475569 !important;
+  color: #334155 !important;
 }
 
 .light-theme .text-slate-400 {
@@ -93,27 +106,70 @@
 }
 
 .light-theme .text-slate-500 {
-  color: #94a3b8 !important;
+  color: #64748b !important;
 }
 
 .light-theme .text-slate-600 {
   color: #475569 !important;
 }
 
+.light-theme input,
+.light-theme textarea,
+.light-theme select {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+.light-theme input::placeholder,
+.light-theme textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+.light-theme .bg-black\/40,
+.light-theme .bg-black\/50,
+.light-theme .bg-black\/60,
+.light-theme .bg-black\/80,
+.light-theme .bg-black\/90,
+.light-theme .bg-slate-950\/90,
+.light-theme .bg-slate-950\/95 {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.light-theme .bg-white\/5,
+.light-theme .bg-white\/\[0\.02\],
+.light-theme .bg-white\/\[0\.03\] {
+  background-color: rgba(241, 245, 249, 0.8) !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Cyberpunk Theme Neon Styling */
 .cyberpunk-theme body,
 .cyberpunk-theme {
   background-color: #050811 !important;
   background-image:
-    radial-gradient(circle at 100% 0%, rgba(236, 72, 153, 0.15) 0%, transparent 40%),
-    radial-gradient(circle at 0% 100%, rgba(6, 182, 212, 0.15) 0%, transparent 40%) !important;
+    radial-gradient(circle at 100% 0%, rgba(236, 72, 153, 0.18) 0%, transparent 45%),
+    radial-gradient(circle at 0% 100%, rgba(6, 182, 212, 0.18) 0%, transparent 45%),
+    radial-gradient(circle at 50% 50%, rgba(16, 185, 129, 0.06) 0%, transparent 60%) !important;
   color: #f1f5f9 !important;
 }
 
 .cyberpunk-theme .glass-panel {
-  background: rgba(10, 15, 30, 0.7) !important;
-  backdrop-filter: blur(24px);
-  border: 1px solid rgba(236, 72, 153, 0.2) !important;
-  box-shadow: 0 0 25px rgba(6, 182, 212, 0.15);
+  background: rgba(10, 15, 30, 0.88) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(236, 72, 153, 0.3) !important;
+  box-shadow: 0 0 30px rgba(6, 182, 212, 0.2), inset 0 1px 0 rgba(236, 72, 153, 0.2) !important;
+}
+
+.cyberpunk-theme ::-webkit-scrollbar-thumb {
+  background: rgba(6, 182, 212, 0.4);
+}
+
+.cyberpunk-theme ::-webkit-scrollbar-thumb:hover {
+  background: rgba(236, 72, 153, 0.7);
 }
 
 .scrollbar-hide::-webkit-scrollbar {
@@ -123,4 +179,9 @@
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+.content-visibility-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 800px;
 }

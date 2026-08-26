@@ -25,7 +25,7 @@ export function App() {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const urlLang = params.get('lang') as LangKey | null;
-      if (urlLang && ['en', 'tr', 'es', 'de', 'fr', 'it', 'pt', 'ru', 'ar'].includes(urlLang)) {
+      if (urlLang && ['en', 'tr', 'es', 'de', 'fr', 'it', 'pt', 'ru', 'ar', 'zh'].includes(urlLang)) {
         return urlLang;
       }
     }
@@ -34,7 +34,7 @@ export function App() {
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [sessionTransfers, setSessionTransfers] = useState(0);
 
-  const t = getTranslator(lang);
+  const t = useCallback((key: string) => getTranslator(lang)(key), [lang]);
 
   // Sync theme to document element
   useEffect(() => {
@@ -42,10 +42,11 @@ export function App() {
     document.documentElement.className = theme === 'cyberpunk' ? 'cyberpunk-theme' : theme === 'light' ? 'light-theme' : '';
   }, [theme]);
 
-  // Sync language persistence and html document lang
+  // Sync language persistence, html document lang and RTL direction
   useEffect(() => {
     localStorage.setItem('ms-lang', lang);
     document.documentElement.lang = lang;
+    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
   }, [lang]);
 
   // Wrapper for broadcast to avoid circular dependency issues
@@ -58,17 +59,19 @@ export function App() {
 
   // Hooks
   const chat = useChat(broadcastWrapper);
+  const addPeerMessage = chat.addPeerMessage;
+  const clearMessages = chat.clearMessages;
 
   const onChatMessage = useCallback(
     (text: string) => {
-      chat.addPeerMessage(text);
+      addPeerMessage(text);
     },
-    [chat],
+    [addPeerMessage],
   );
 
   const clearChatMessages = useCallback(() => {
-    chat.clearMessages();
-  }, [chat]);
+    clearMessages();
+  }, [clearMessages]);
 
   const onTransferComplete = useCallback(() => {
     setSessionTransfers((prev) => prev + 1);
@@ -122,30 +125,46 @@ export function App() {
     peer.connectAsReceiver,
   );
 
+  const peerResetConnection = peer.resetConnection;
+
+  const handleSelfDestruct = useCallback(() => {
+    peerResetConnection();
+    setPeerMode('idle');
+  }, [peerResetConnection, setPeerMode]);
+
   // Self destruct timer
   const selfDestructSec = useSelfDestruct(
     peer.transferProgress,
     peer.isConnected,
-    useCallback(() => {
-      peer.resetConnection();
-      peer.setMode('idle');
-    }, [peer]),
+    handleSelfDestruct,
   );
 
-  // Auto-connect room from URL query (?room=CODE) or hash (#CODE) on mount
+  // Auto-connect room from URL query (?room=CODE / ?code=CODE) or hash (#CODE) on mount
   useEffect(() => {
     const rawUrl = window.location.href;
     const roomCode = parseRoomCode(rawUrl);
 
-    if (roomCode && roomCode.length >= 7) {
-      // Clean URL without triggering a page reload
-      window.history.replaceState({}, '', window.location.pathname);
+    if (roomCode && roomCode.length >= 6) {
+      // Clean room/code/id params and hash from URL without triggering a page reload while preserving other params
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('room');
+        url.searchParams.delete('code');
+        url.searchParams.delete('id');
+        url.hash = '';
+        const newSearch = url.searchParams.toString();
+        const newUrl = `${url.pathname}${newSearch ? `?${newSearch}` : ''}`;
+        window.history.replaceState({}, '', newUrl);
+      } catch {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+
       peer.setReceiveCode(roomCode);
       peer.setMode('receive');
       // Auto-connect after a short delay
       setTimeout(() => {
         peer.connectAsReceiver(roomCode);
-      }, 300);
+      }, 250);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -206,6 +225,20 @@ export function App() {
     [setPeerShareCode, setPeerMode, inviteDevice],
   );
 
+  const setFileToShare = fileHandler.setFileToShare;
+
+  const handleSendClose = useCallback(() => {
+    setPeerShareCode('');
+    setFileToShare(null);
+    peerResetConnection();
+    setPeerMode('idle');
+  }, [setPeerShareCode, setFileToShare, peerResetConnection, setPeerMode]);
+
+  const handleReceiveClose = useCallback(() => {
+    peerResetConnection();
+    setPeerMode('idle');
+  }, [peerResetConnection, setPeerMode]);
+
   return (
     <div
       className={`min-h-[100dvh] flex flex-col items-center justify-center p-4 selection:bg-emerald-500/30 transition-colors duration-300 ${
@@ -261,12 +294,7 @@ export function App() {
               toggleVoiceTalkie={peer.toggleVoiceTalkie}
               onCopy={handleCopyLink}
               onDownloadQR={handleDownloadQR}
-              onClose={() => {
-                peer.setShareCode('');
-                fileHandler.setFileToShare(null);
-                peer.resetConnection();
-                peer.setMode('idle');
-              }}
+              onClose={handleSendClose}
               t={t}
             />
           )}
@@ -295,10 +323,7 @@ export function App() {
               toggleVoiceTalkie={peer.toggleVoiceTalkie}
               handleBurnOnDownload={peer.handleBurnOnDownload}
               onConnect={peer.connectAsReceiver}
-              onClose={() => {
-                peer.resetConnection();
-                peer.setMode('idle');
-              }}
+              onClose={handleReceiveClose}
               t={t}
             />
           )}

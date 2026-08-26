@@ -46,7 +46,7 @@ export const Header = React.memo(function Header({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showLangPicker, setShowLangPicker]);
 
-  const currentThemeLabel = theme === 'dark' ? 'Dark' : theme === 'cyberpunk' ? 'Cyberpunk' : 'Light';
+  const currentThemeLabel = theme === 'dark' ? t('darkTheme') : theme === 'cyberpunk' ? t('cyberpunkTheme') : t('lightTheme');
 
   return (
     <>
@@ -125,10 +125,10 @@ export const Header = React.memo(function Header({
         </button>
       </div>
 
-      {/* Background Decor */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute top-[20%] left-[50%] -translate-x-1/2 w-[60vw] h-[60vw] max-w-[800px] max-h-[800px] bg-emerald-500/[0.03] rounded-full blur-3xl mix-blend-screen" />
-        <div className="absolute bottom-[10%] left-[20%] w-[40vw] h-[40vw] max-w-[600px] max-h-[600px] bg-cyan-500/[0.03] rounded-full blur-3xl mix-blend-screen" />
+      {/* Background Decor with GPU Layer Isolation */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0" style={{ transform: 'translateZ(0)' }}>
+        <div className="absolute top-[20%] left-[50%] -translate-x-1/2 w-[60vw] h-[60vw] max-w-[800px] max-h-[800px] bg-emerald-500/[0.03] rounded-full blur-2xl pointer-events-none" style={{ willChange: 'transform', transform: 'translateZ(0)' }} />
+        <div className="absolute bottom-[10%] left-[20%] w-[40vw] h-[40vw] max-w-[600px] max-h-[600px] bg-cyan-500/[0.03] rounded-full blur-2xl pointer-events-none" style={{ willChange: 'transform', transform: 'translateZ(0)' }} />
       </div>
 
       <header className="z-10 w-full max-w-lg" role="banner">

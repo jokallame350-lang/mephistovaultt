@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Peer } from 'peerjs';
 import type { DataConnection } from 'peerjs';
 import {
@@ -190,6 +190,15 @@ export function useLANDiscovery(
         const idx = prev.findIndex((d) => d.id === device.id);
         if (idx !== -1) {
           const existing = prev[idx];
+          // Check if properties actually changed
+          if (
+            existing.name === device.name &&
+            existing.code === (device.code ?? existing.code) &&
+            existing.mode === (device.mode ?? existing.mode) &&
+            Math.abs((existing.time || 0) - (device.time || Date.now())) < 2000
+          ) {
+            return prev;
+          }
           const updated: DeviceInfo = {
             ...existing,
             ...device,
@@ -231,7 +240,20 @@ export function useLANDiscovery(
           }
         });
 
-        return Array.from(deviceMap.values());
+        const nextList = Array.from(deviceMap.values());
+        if (
+          prev.length === nextList.length &&
+          prev.every(
+            (p, i) =>
+              p.id === nextList[i]?.id &&
+              p.code === nextList[i]?.code &&
+              p.mode === nextList[i]?.mode,
+          )
+        ) {
+          return prev;
+        }
+
+        return nextList;
       });
     };
 
@@ -463,9 +485,23 @@ export function useLANDiscovery(
             if (now - knownDevices[k].time > DEVICE_STALE_MS) delete knownDevices[k];
           });
           knownDevices[myDeviceRef.current.id] = { ...myDeviceRef.current, time: now };
-          setNearbyDevices(
-            Object.values(knownDevices).filter((d) => d.id !== myDeviceRef.current.id),
-          );
+          
+          const filtered = Object.values(knownDevices).filter((d) => d.id !== myDeviceRef.current.id);
+          setNearbyDevices((prev) => {
+            if (
+              prev.length === filtered.length &&
+              prev.every(
+                (p, i) =>
+                  p.id === filtered[i]?.id &&
+                  p.code === filtered[i]?.code &&
+                  p.mode === filtered[i]?.mode,
+              )
+            ) {
+              return prev;
+            }
+            return filtered;
+          });
+
           const payload: LobbyMessage = { type: 'lobby-sync', devices: knownDevices };
           broadcastToClients(payload);
         };
@@ -499,7 +535,12 @@ export function useLANDiscovery(
 
     const localInterval = setInterval(announceLocal, LOBBY_BROADCAST_MS);
     const cleanupInterval = setInterval(() => {
-      setNearbyDevices((prev) => prev.filter((d) => Date.now() - d.time < DEVICE_STALE_MS));
+      setNearbyDevices((prev) => {
+        const now = Date.now();
+        const hasStale = prev.some((d) => now - d.time >= DEVICE_STALE_MS);
+        if (!hasStale) return prev;
+        return prev.filter((d) => now - d.time < DEVICE_STALE_MS);
+      });
     }, DEVICE_STALE_MS);
 
     return () => {
@@ -519,26 +560,29 @@ export function useLANDiscovery(
     };
   }, []);
 
-  const inviteDevice = (targetId: string) => {
-    const invitePayload: LobbyMessage = {
-      type: 'invite',
-      targetId,
-      code: shareCode,
-    };
-    if (lobbyEnvRef.current) {
-      lobbyEnvRef.current.broadcastToClients(invitePayload);
-      if (lobbyEnvRef.current.lobbyConn?.open) {
-        lobbyEnvRef.current.lobbyConn.send(invitePayload);
+  const inviteDevice = useCallback(
+    (targetId: string) => {
+      const invitePayload: LobbyMessage = {
+        type: 'invite',
+        targetId,
+        code: shareCode,
+      };
+      if (lobbyEnvRef.current) {
+        lobbyEnvRef.current.broadcastToClients(invitePayload);
+        if (lobbyEnvRef.current.lobbyConn?.open) {
+          lobbyEnvRef.current.lobbyConn.send(invitePayload);
+        }
       }
-    }
-    if (bcRef.current) {
-      try {
-        bcRef.current.postMessage(invitePayload);
-      } catch {
-        // ignore
+      if (bcRef.current) {
+        try {
+          bcRef.current.postMessage(invitePayload);
+        } catch {
+          // ignore
+        }
       }
-    }
-  };
+    },
+    [shareCode],
+  );
 
   return {
     nearbyDevices,

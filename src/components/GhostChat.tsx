@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, MessageSquare, Lock, Smile, Clipboard, Send, FileText, Check } from 'lucide-react';
 import { EMOJIS } from '../lib/constants';
@@ -55,7 +55,7 @@ export const GhostChat = React.memo(function GhostChat({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showEmojiPicker, setShowEmojiPicker]);
 
-  const handleCopyNotepad = async () => {
+  const handleCopyNotepad = useCallback(async () => {
     if (!notepadText.trim()) return;
     try {
       await navigator.clipboard.writeText(notepadText);
@@ -64,7 +64,7 @@ export const GhostChat = React.memo(function GhostChat({
     } catch {
       alert('Panoya kopyalanamadı.');
     }
-  };
+  }, [notepadText]);
 
   return (
     <motion.div
@@ -110,7 +110,7 @@ export const GhostChat = React.memo(function GhostChat({
             aria-selected={activeTab === 'notepad'}
             role="tab"
           >
-            <FileText className="w-3.5 h-3.5" /> 📝 Canlı Not & Kod Düzenleyici
+            <FileText className="w-3.5 h-3.5" /> {t('liveNotepad')}
           </button>
         </div>
         <div className="flex items-center gap-1 text-[10px] text-purple-500/80 uppercase tracking-widest bg-purple-500/10 px-2 py-1 rounded-md">
@@ -213,7 +213,7 @@ export const GhostChat = React.memo(function GhostChat({
       ) : (
         <div className="p-4 flex flex-col gap-3">
           <div className="flex items-center justify-between text-xs text-purple-300 font-mono">
-            <span>📝 Canlı Şifreli Not Defteri (Cihazlar Ayrılınca Yok Olur)</span>
+            <span>{t('notepadBanner')}</span>
             <button
               type="button"
               onClick={handleCopyNotepad}
@@ -222,16 +222,16 @@ export const GhostChat = React.memo(function GhostChat({
               aria-label="Copy notepad content to clipboard"
             >
               {copiedToast ? (
-                <span className="text-emerald-400 flex items-center gap-1"><Check className="w-3 h-3" /> Kopyalandı!</span>
+                <span className="text-emerald-400 flex items-center gap-1"><Check className="w-3 h-3" /> {t('copied')}</span>
               ) : (
-                <span>Panoya Kopyala</span>
+                <span>{t('copyNotepad')}</span>
               )}
             </button>
           </div>
           <textarea
             value={notepadText}
             onChange={(e) => setNotepadText(e.target.value)}
-            placeholder="Buraya anlık ortak notlar, şifreler veya kod parçaları yazabilirsiniz. Cihazlar kapatılınca tüm veriler hafızadan imha edilir..."
+            placeholder={t('notepadPlaceholder')}
             className="w-full h-44 bg-black/60 border border-purple-500/20 rounded-xl p-3 text-xs font-mono text-purple-100 focus:outline-none focus:border-purple-500/50 resize-none custom-scrollbar"
             aria-label="Encrypted ephemeral notepad"
           />

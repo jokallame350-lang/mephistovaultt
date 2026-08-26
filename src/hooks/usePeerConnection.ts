@@ -66,15 +66,17 @@ export function usePeerConnection({
     const now = Date.now();
     const elapsed = now - lastSpeedCalcRef.current.time;
 
-    if (elapsed >= 1000 || bytesCurrent >= bytesTotal) {
+    if (elapsed >= 500 || bytesCurrent >= bytesTotal) {
       const bytesDiff = bytesCurrent - lastSpeedCalcRef.current.bytes;
       if (elapsed > 0 && lastSpeedCalcRef.current.time !== 0) {
         const bps = (Math.max(0, bytesDiff) / elapsed) * 1000;
-        setTransferSpeed(formatSpeed(bps));
+        const formattedSpeed = formatSpeed(bps);
+        setTransferSpeed((prev) => (prev === formattedSpeed ? prev : formattedSpeed));
         if (bps > 0 && bytesCurrent < bytesTotal) {
-          setTransferETA(formatETA((bytesTotal - bytesCurrent) / bps));
+          const formattedEta = formatETA((bytesTotal - bytesCurrent) / bps);
+          setTransferETA((prev) => (prev === formattedEta ? prev : formattedEta));
         } else {
-          setTransferETA('--:--');
+          setTransferETA((prev) => (prev === '--:--' ? prev : '--:--'));
         }
       }
       if (bytesCurrent >= bytesTotal) {
@@ -256,8 +258,9 @@ export function usePeerConnection({
           offset: offset,
         });
 
-        const progress = Math.round((end / file.size) * 100);
-        setTransferProgress(end === file.size ? 100 : Math.min(99, progress));
+        const progress = file.size === 0 ? 100 : Math.round((end / file.size) * 100);
+        const newProg = end === file.size ? 100 : Math.min(99, progress);
+        setTransferProgress((prev) => (prev === newProg ? prev : newProg));
         calculateSpeedAndETA(end, file.size);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
@@ -380,7 +383,15 @@ export function usePeerConnection({
         let activeConnAttempt: DataConnection | null = null;
 
         const tryConnect = () => {
-          if (connected || attempts >= MAX_CONNECT_ATTEMPTS) return;
+          if (connected) return;
+          if (attempts >= MAX_CONNECT_ATTEMPTS) {
+            if (!connected) {
+              setErrorStatus(ERRORS.SENDER_NOT_RESPONDING);
+              setTransferProgress(-1);
+              setIsConnected(false);
+            }
+            return;
+          }
           attempts++;
 
           if (activeConnAttempt) {
@@ -445,6 +456,14 @@ export function usePeerConnection({
                     cryptoKeyRef.current = await deriveKey(sanitizedCode);
                   }
 
+                  // Handle 0-byte (empty) files immediately
+                  if (meta.size === 0) {
+                    transferCompletedRef.current = true;
+                    setTransferProgress(100);
+                    finalizeDownload(meta.name, meta.type);
+                    return;
+                  }
+
                   // Pipeline: Request initial window of parallel chunks
                   for (let i = 0; i < PIPELINE_WINDOW_SIZE; i++) {
                     if (requestedOffsetRef.current < meta.size) {
@@ -485,7 +504,8 @@ export function usePeerConnection({
                   }
 
                   if (receivedBytesRef.current < meta.size) {
-                    setTransferProgress(Math.min(99, progress));
+                    const newProg = Math.min(99, progress);
+                    setTransferProgress((prev) => (prev === newProg ? prev : newProg));
                   } else if (!transferCompletedRef.current) {
                     transferCompletedRef.current = true;
                     setTransferProgress(100);
@@ -497,7 +517,16 @@ export function usePeerConnection({
               }
             } catch (err: unknown) {
               const message = err instanceof Error ? err.message : String(err);
-              setErrorStatus(ERRORS.PARSE_ERR + message);
+              if (
+                message.toLowerCase().includes('tag') ||
+                message.toLowerCase().includes('decrypt') ||
+                message.toLowerCase().includes('operationerror') ||
+                message.toLowerCase().includes('ciphertext')
+              ) {
+                setErrorStatus(ERRORS.DECRYPTION_ERR);
+              } else {
+                setErrorStatus(ERRORS.PARSE_ERR + message);
+              }
             }
           });
 
@@ -511,16 +540,23 @@ export function usePeerConnection({
               connectTimeoutRef.current = setTimeout(tryConnect, 1500);
             } else if (!connected) {
               setErrorStatus(ERRORS.CONN_ERR + ': ' + err.message);
+              setTransferProgress(-1);
             }
           });
 
-          // Single fallback timer for retry if connection fails to open within 3 seconds
+          // Single fallback timer for retry if connection fails to open within 3.5 seconds
           if (connectTimeoutRef.current) clearTimeout(connectTimeoutRef.current);
           connectTimeoutRef.current = setTimeout(() => {
-            if (!connected && attempts < MAX_CONNECT_ATTEMPTS) {
-              tryConnect();
+            if (!connected) {
+              if (attempts < MAX_CONNECT_ATTEMPTS) {
+                tryConnect();
+              } else {
+                setErrorStatus(ERRORS.SENDER_NOT_RESPONDING);
+                setTransferProgress(-1);
+                setIsConnected(false);
+              }
             }
-          }, 3000);
+          }, 3500);
         };
 
         tryConnect();

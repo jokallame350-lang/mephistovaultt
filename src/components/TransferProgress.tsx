@@ -39,8 +39,8 @@ export const TransferProgress = React.memo(function TransferProgress({
         aria-label={label}
       >
         <div
-          className={`h-full bg-gradient-to-r ${gradientClass} rounded-full transition-all duration-300 ease-out`}
-          style={{ width: `${roundedProgress}%` }}
+          className={`h-full bg-gradient-to-r ${gradientClass} rounded-full transition-[width] duration-150 ease-out`}
+          style={{ width: `${roundedProgress}%`, transform: 'translateZ(0)' }}
         />
       </div>
       {(speed || eta) && (

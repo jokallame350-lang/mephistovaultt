@@ -1,6 +1,37 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import JSZip from 'jszip';
 import type { CompletedFile, ZipEntry, FileWithCustomPath, WebKitEntry, WebKitFileEntry, WebKitDirectoryEntry } from '../types';
+
+async function scanEntry(entry: WebKitEntry, path = ''): Promise<File[]> {
+  if (entry.isFile) {
+    return new Promise<File[]>((resolve) => {
+      (entry as WebKitFileEntry).file((file: File) => {
+        (file as FileWithCustomPath).customPath = path + file.name;
+        resolve([file]);
+      });
+    });
+  } else if (entry.isDirectory) {
+    const dirReader = (entry as WebKitDirectoryEntry).createReader();
+    return new Promise<File[]>((resolve) => {
+      const readAll = async () => {
+        let allFiles: File[] = [];
+        const readEntries = () => new Promise<WebKitEntry[]>((res) => dirReader.readEntries(res));
+
+        let entries = await readEntries();
+        while (entries.length > 0) {
+          for (const cEntry of entries) {
+            const files = await scanEntry(cEntry, path + entry.name + '/');
+            allFiles = allFiles.concat(files);
+          }
+          entries = await readEntries();
+        }
+        resolve(allFiles);
+      };
+      readAll();
+    });
+  }
+  return [];
+}
 
 export function useFileHandler(completedFile: CompletedFile | null) {
   const [fileToShare, setFileToShare] = useState<File | null>(null);
@@ -8,11 +39,8 @@ export function useFileHandler(completedFile: CompletedFile | null) {
   const [isZipping, setIsZipping] = useState(false);
   const [zipProgress, setZipProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
-
   const [zipContents, setZipContents] = useState<ZipEntry[]>([]);
   const [showZipPreview, setShowZipPreview] = useState(false);
 
@@ -22,31 +50,39 @@ export function useFileHandler(completedFile: CompletedFile | null) {
   // Sync fileToShareRef with state
   useEffect(() => {
     fileToShareRef.current = fileToShare;
-    if (fileToShare && fileToShare.type.startsWith('image/')) {
-      const url = URL.createObjectURL(fileToShare);
-      queueMicrotask(() => setPreviewUrl(url));
-      return () => URL.revokeObjectURL(url);
-    } else {
-      queueMicrotask(() => setPreviewUrl(null));
-    }
   }, [fileToShare]);
 
-  // Video preview URL for completed file
-  useEffect(() => {
-    if (completedFile && completedFile.type.startsWith('video/')) {
-      const url = URL.createObjectURL(completedFile.blob);
-      queueMicrotask(() => setVideoPreviewUrl(url));
-      return () => URL.revokeObjectURL(url);
-    } else {
-      queueMicrotask(() => {
-        setVideoPreviewUrl(null);
-        setShowVideoPlayer(false);
-      });
+  // Image preview URL derived directly via useMemo with guaranteed URL cleanup
+  const previewUrl = useMemo(() => {
+    if (fileToShare && fileToShare.type.startsWith('image/')) {
+      return URL.createObjectURL(fileToShare);
     }
+    return null;
+  }, [fileToShare]);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+  // Video preview URL for completed file derived directly via useMemo
+  const videoPreviewUrl = useMemo(() => {
+    if (completedFile && completedFile.type.startsWith('video/')) {
+      return URL.createObjectURL(completedFile.blob);
+    }
+    return null;
   }, [completedFile]);
+
+  useEffect(() => {
+    return () => {
+      if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
+    };
+  }, [videoPreviewUrl]);
 
   // UX Polish: Automatically extract ZIP file info if received
   useEffect(() => {
+    let isMounted = true;
     if (completedFile && completedFile.name.endsWith('.zip')) {
       const loadZip = async () => {
         try {
@@ -63,21 +99,32 @@ export function useFileHandler(completedFile: CompletedFile | null) {
             });
           });
 
-          setZipContents(contents.sort((a, b) => (a.dir === b.dir ? 0 : a.dir ? -1 : 1)));
+          if (isMounted) {
+            setZipContents(contents.sort((a, b) => (a.dir === b.dir ? 0 : a.dir ? -1 : 1)));
+          }
         } catch {
           // handled silently
         }
       };
       loadZip();
     } else {
-      queueMicrotask(() => {
-        setZipContents([]);
-        setShowZipPreview(false);
-      });
+      const resetTimer = setTimeout(() => {
+        if (isMounted) {
+          setZipContents((prev) => (prev.length === 0 ? prev : []));
+          setShowZipPreview(false);
+        }
+      }, 0);
+      return () => {
+        clearTimeout(resetTimer);
+        isMounted = false;
+      };
     }
+    return () => {
+      isMounted = false;
+    };
   }, [completedFile]);
 
-  const processFiles = async (files: File[]) => {
+  const processFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
 
     // Check if we need to zip: >1 file OR it has a custom path/folder structure
@@ -124,82 +171,57 @@ export function useFileHandler(completedFile: CompletedFile | null) {
       setIsZipping(false);
       setFileToShare(bundledFile);
     }
-  };
+  }, []);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) processFiles(Array.from(e.target.files));
-  };
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files) processFiles(Array.from(e.target.files));
+    },
+    [processFiles],
+  );
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(true);
-  };
+  }, []);
 
-  const handleDragLeave = (e: React.DragEvent) => {
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-  };
+  }, []);
 
-  const scanEntry = async (entry: WebKitEntry, path = ''): Promise<File[]> => {
-    if (entry.isFile) {
-      return new Promise<File[]>((resolve) => {
-        (entry as WebKitFileEntry).file((file: File) => {
-          (file as FileWithCustomPath).customPath = path + file.name;
-          resolve([file]);
-        });
-      });
-    } else if (entry.isDirectory) {
-      const dirReader = (entry as WebKitDirectoryEntry).createReader();
-      return new Promise<File[]>((resolve) => {
-        const readAll = async () => {
-          let allFiles: File[] = [];
-          const readEntries = () => new Promise<WebKitEntry[]>((res) => dirReader.readEntries(res));
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
 
-          let entries = await readEntries();
-          while (entries.length > 0) {
-            for (const cEntry of entries) {
-              const files = await scanEntry(cEntry, path + entry.name + '/');
+      if (e.dataTransfer.items) {
+        const items = Array.from(e.dataTransfer.items);
+        let allFiles: File[] = [];
+        for (const item of items) {
+          if (item.kind === 'file') {
+            const itemExt = item as unknown as { getAsEntry?: () => WebKitEntry | null };
+            const entry = item.webkitGetAsEntry
+              ? (item.webkitGetAsEntry() as unknown as WebKitEntry | null)
+              : itemExt.getAsEntry
+              ? itemExt.getAsEntry()
+              : null;
+            if (entry) {
+              const files = await scanEntry(entry);
               allFiles = allFiles.concat(files);
+            } else {
+              const file = item.getAsFile();
+              if (file) allFiles.push(file);
             }
-            entries = await readEntries();
-          }
-          resolve(allFiles);
-        };
-        readAll();
-      });
-    }
-    return [];
-  };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-
-    if (e.dataTransfer.items) {
-      const items = Array.from(e.dataTransfer.items);
-      let allFiles: File[] = [];
-      for (const item of items) {
-        if (item.kind === 'file') {
-          const itemExt = item as unknown as { getAsEntry?: () => WebKitEntry | null };
-          const entry = item.webkitGetAsEntry
-            ? (item.webkitGetAsEntry() as unknown as WebKitEntry | null)
-            : itemExt.getAsEntry
-            ? itemExt.getAsEntry()
-            : null;
-          if (entry) {
-            const files = await scanEntry(entry);
-            allFiles = allFiles.concat(files);
-          } else {
-            const file = item.getAsFile();
-            if (file) allFiles.push(file);
           }
         }
+        processFiles(allFiles);
+      } else if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        processFiles(Array.from(e.dataTransfer.files));
       }
-      processFiles(allFiles);
-    } else if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      processFiles(Array.from(e.dataTransfer.files));
-    }
-  };
+    },
+    [processFiles],
+  );
 
   return {
     fileToShare,
@@ -224,3 +246,5 @@ export function useFileHandler(completedFile: CompletedFile | null) {
     handleDrop,
   };
 }
+
+export default useFileHandler;

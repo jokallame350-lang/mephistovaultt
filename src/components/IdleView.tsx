@@ -65,26 +65,26 @@ export const IdleView = React.memo(function IdleView({
         <button
           onClick={() => setMode('send')}
           className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 transition-all text-xs font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-          aria-label="Share quick text note"
+          aria-label={t('quickText')}
         >
           <FileText className="w-4 h-4" />
-          <span>⚡ Hızlı Metin Paylaş</span>
+          <span>{t('quickText')}</span>
         </button>
         <button
           onClick={() => setMode('send')}
           className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500/20 transition-all text-xs font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500/50"
-          aria-label="Package and send folder"
+          aria-label={t('bundleFolder')}
         >
           <Folder className="w-4 h-4" />
-          <span>📦 Klasör Paketle</span>
+          <span>{t('bundleFolder')}</span>
         </button>
         <button
           onClick={() => setMode('receive')}
           className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 transition-all text-xs font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-          aria-label="Connect using room code"
+          aria-label={t('connectCode')}
         >
           <Lock className="w-4 h-4" />
-          <span>🔑 Koda Bağlan</span>
+          <span>{t('connectCode')}</span>
         </button>
       </section>
 
