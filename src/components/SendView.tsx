@@ -13,8 +13,6 @@ import {
   Bomb,
   Loader2,
   Clock,
-  Radio,
-  Mic,
   Camera,
   Monitor,
   Share2,
@@ -53,12 +51,10 @@ interface SendViewProps {
   setShowQR: (v: boolean) => void;
   expirationSec?: number;
   setExpirationSec?: (sec: number) => void;
-  isVoiceActive?: boolean;
-  toggleVoiceTalkie?: () => void;
   onCopy: () => void;
   onDownloadQR: () => void;
   onClose: () => void;
-  t: (key: string) => string;
+  t: (key: string, params?: Record<string, string | number>) => string;
 }
 
 export const SendView = React.memo(function SendView({
@@ -87,8 +83,6 @@ export const SendView = React.memo(function SendView({
   setShowQR,
   expirationSec = 0,
   setExpirationSec,
-  isVoiceActive = false,
-  toggleVoiceTalkie,
   onCopy,
   onDownloadQR,
   onClose,
@@ -147,13 +141,13 @@ export const SendView = React.memo(function SendView({
       );
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      alert('Kamera başlatılamadı veya erişim reddedildi: ' + message);
+      alert(`${t('cameraError')}: ${message}`);
     } finally {
       if (stream) {
         stream.getTracks().forEach((t) => t.stop());
       }
     }
-  }, [setFileToShare]);
+  }, [setFileToShare, t]);
 
   const handleInstantScreen = useCallback(async () => {
     let stream: MediaStream | null = null;
@@ -183,13 +177,13 @@ export const SendView = React.memo(function SendView({
       }, 'image/png');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      alert('Ekran yakalanamadı veya iptal edildi: ' + message);
+      alert(`${t('screenCapError')}: ${message}`);
     } finally {
       if (stream) {
         stream.getTracks().forEach((t) => t.stop());
       }
     }
-  }, [setFileToShare]);
+  }, [setFileToShare, t]);
 
   return (
     <motion.div
@@ -448,29 +442,6 @@ export const SendView = React.memo(function SendView({
               </select>
             </div>
 
-            {/* Phantom Voice P2P Walkie Talkie Bar */}
-            {isConnected && (
-              <div className="w-full mb-6 p-3 bg-purple-500/10 border border-purple-500/20 rounded-2xl flex items-center justify-between">
-                <div className="flex items-center gap-2 text-purple-300 text-xs font-bold font-mono">
-                  <Radio className="w-4 h-4 text-purple-400 animate-pulse" />
-                  <span>{t('phantomVoice')}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={toggleVoiceTalkie}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md cursor-pointer ${
-                    isVoiceActive
-                      ? 'bg-red-500 hover:bg-red-400 text-white animate-pulse'
-                      : 'bg-purple-500 hover:bg-purple-400 text-white'
-                  }`}
-                  aria-label={isVoiceActive ? 'Disable Microphone' : 'Enable Microphone'}
-                  aria-pressed={isVoiceActive}
-                >
-                  <Mic className="w-3.5 h-3.5" /> {isVoiceActive ? t('micMute') : t('micActive')}
-                </button>
-              </div>
-            )}
-
             {errorStatus && (
               <div
                 role="alert"
@@ -504,8 +475,8 @@ export const SendView = React.memo(function SendView({
                     <button
                       onClick={onCopy}
                       className="bg-white/5 hover:bg-white/10 border border-white/5 p-3 rounded-xl transition-colors group cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                      title="Copy Invite Link"
-                      aria-label="Copy invitation link to clipboard"
+                      title={t('copyInviteLink')}
+                      aria-label={t('copyInviteLink')}
                     >
                       {copied ? (
                         <Check className="w-5 h-5 text-green-500" />
@@ -520,8 +491,8 @@ export const SendView = React.memo(function SendView({
                           ? 'bg-emerald-500/20 border-emerald-500/50 hover:bg-emerald-500/30'
                           : 'bg-white/5 hover:bg-white/10 border-white/5'
                       }`}
-                      title="Show QR Code"
-                      aria-label="Show QR Code representation of share link"
+                      title={t('scanQR')}
+                      aria-label={t('scanQR')}
                       aria-expanded={showQR}
                     >
                       <QrCode
@@ -537,8 +508,8 @@ export const SendView = React.memo(function SendView({
                         <button
                           onClick={onDownloadQR}
                           className="bg-white/5 hover:bg-white/10 border border-white/5 p-3 rounded-xl transition-colors group cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                          title="Download HD QR (1024x1024 PNG)"
-                          aria-label="Download QR code image as HD PNG"
+                          title={t('downloadHDQR')}
+                          aria-label={t('downloadHDQR')}
                         >
                           <Download className="w-5 h-5 text-slate-400 group-hover:text-white" />
                         </button>
@@ -585,7 +556,7 @@ export const SendView = React.memo(function SendView({
                         <div className="absolute bottom-2 right-2 w-3 h-3 border-b-2 border-r-2 border-emerald-500/80 group-hover:border-emerald-400 transition-colors" />
 
                         {/* Hover Overlay Hint */}
-                        <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-2 text-emerald-400 font-mono text-xs font-bold z-10">
+                        <div className="absolute inset-0 bg-slate-950/90 opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-2 text-emerald-400 font-mono text-xs font-bold z-10">
                           <Maximize2 className="w-6 h-6 animate-bounce" />
                           <span>{t('zoomLightbox')}</span>
                         </div>
@@ -741,7 +712,7 @@ export const SendView = React.memo(function SendView({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setIsQRLightboxOpen(false)}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm transform-gpu"
             role="dialog"
             aria-modal="true"
             aria-label="QR Code Lightbox Modal"
@@ -751,7 +722,7 @@ export const SendView = React.memo(function SendView({
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.85, opacity: 0, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="relative bg-slate-950/95 border border-emerald-500/40 p-6 md:p-8 rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.35)] max-w-md w-full text-center overflow-hidden"
+              className="relative bg-slate-950/95 border border-emerald-500/40 p-6 md:p-8 rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.35)] max-w-md w-full text-center overflow-hidden transform-gpu"
             >
               {/* Cyberpunk Decorative Corners */}
               <div className="absolute top-3 left-3 w-4 h-4 border-t-2 border-l-2 border-emerald-500" />

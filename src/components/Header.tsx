@@ -86,7 +86,7 @@ export const Header = React.memo(function Header({
                 initial={{ opacity: 0, y: -5 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -5 }}
-                className="absolute right-0 top-12 bg-black/90 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden shadow-2xl min-w-[160px] z-50"
+                className="absolute right-0 top-12 bg-slate-950/95 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden shadow-2xl min-w-[160px] z-50 transform-gpu"
                 role="listbox"
                 aria-label="Supported Languages"
               >
@@ -123,12 +123,6 @@ export const Header = React.memo(function Header({
         >
           <Palette className="w-5 h-5 text-emerald-400" />
         </button>
-      </div>
-
-      {/* Background Decor with GPU Layer Isolation */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0" style={{ transform: 'translateZ(0)' }}>
-        <div className="absolute top-[20%] left-[50%] -translate-x-1/2 w-[60vw] h-[60vw] max-w-[800px] max-h-[800px] bg-emerald-500/[0.03] rounded-full blur-2xl pointer-events-none" style={{ willChange: 'transform', transform: 'translateZ(0)' }} />
-        <div className="absolute bottom-[10%] left-[20%] w-[40vw] h-[40vw] max-w-[600px] max-h-[600px] bg-cyan-500/[0.03] rounded-full blur-2xl pointer-events-none" style={{ willChange: 'transform', transform: 'translateZ(0)' }} />
       </div>
 
       <header className="z-10 w-full max-w-lg" role="banner">

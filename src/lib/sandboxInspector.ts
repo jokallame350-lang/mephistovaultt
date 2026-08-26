@@ -1,4 +1,5 @@
 import { DANGEROUS_EXTENSIONS } from './constants';
+import { getTranslator, type LangKey } from '../i18n';
 
 export interface SafetyReport {
   score: number; // 0 to 100
@@ -7,6 +8,8 @@ export interface SafetyReport {
   details: string[];
   isExecutable: boolean;
 }
+
+export type TranslatorFn = (key: string, params?: Record<string, string | number>) => string;
 
 const DANGEROUS_MIME_TYPES = [
   'application/x-msdownload',
@@ -20,7 +23,19 @@ const DANGEROUS_MIME_TYPES = [
   'application/x-php',
 ];
 
-export function inspectFileSafety(filename: string, size: number, type: string): SafetyReport {
+export function inspectFileSafety(
+  filename: string,
+  size: number,
+  type: string,
+  tOrLang?: TranslatorFn | LangKey,
+): SafetyReport {
+  const t: TranslatorFn =
+    typeof tOrLang === 'function'
+      ? tOrLang
+      : typeof tOrLang === 'string'
+      ? getTranslator(tOrLang)
+      : getTranslator('en');
+
   const cleanFilename = (filename || '').trim();
   const lastDot = cleanFilename.lastIndexOf('.');
   const ext = lastDot !== -1 ? cleanFilename.substring(lastDot).toLowerCase().trim() : '';
@@ -34,7 +49,7 @@ export function inspectFileSafety(filename: string, size: number, type: string):
   if (hasRTLO) {
     score -= 80;
     isExecutable = true;
-    details.push('Kritik Tehlike: Unicode RTLO Gizleme Karakteri Tespit Edildi! (Dosya uzantısı gizlenmiş olabilir).');
+    details.push(t('sandboxRtlo'));
   }
 
   // 2. Double Extension Attack Check (e.g. "document.pdf.exe" or "photo.png.vbs")
@@ -44,18 +59,18 @@ export function inspectFileSafety(filename: string, size: number, type: string):
     if (DANGEROUS_EXTENSIONS.includes(secondExt)) {
       score -= 50;
       isExecutable = true;
-      details.push(`Çift Uzantılı Maskeleme Tespit Edildi (${doubleExtMatch[0]}): İkincil çalıştırılabilir uzantı riski.`);
+      details.push(t('sandboxDoubleExt', { ext: doubleExtMatch[0] }));
     }
   }
 
   if (type) {
-    details.push(`MIME Türü: ${type}`);
+    details.push(t('sandboxMime', { type }));
     // 3. Dangerous MIME Type Inspection
     const cleanType = type.toLowerCase().trim();
     if (DANGEROUS_MIME_TYPES.some((dType) => cleanType.includes(dType))) {
       score -= 60;
       isExecutable = true;
-      details.push(`Tehlikeli MIME Türü (${type}): Çalıştırılabilir ikili dosya imzası taşıyor.`);
+      details.push(t('sandboxDangerousMime', { type }));
     }
   }
 
@@ -65,37 +80,38 @@ export function inspectFileSafety(filename: string, size: number, type: string):
   if (ext && DANGEROUS_EXTENSIONS.includes(ext)) {
     isExecutable = true;
     score -= 60;
-    details.push(`Tehlikeli Çalıştırılabilir Uzantı (${ext}): Otomatik çalıştırma riski taşıyor.`);
+    details.push(t('sandboxDangerousExt', { ext }));
   }
 
   if (ext && MACRO_EXTS.includes(ext)) {
     score -= 40;
-    details.push(`VBA Makro İçeren Belge (${ext}): Gizli script çalıştırma potansiyeline sahip.`);
+    details.push(t('sandboxMacro', { ext }));
   }
 
   if (ext && ARCHIVE_EXTS.includes(ext)) {
-    details.push(`Sıkıştırılmış Arşiv (${ext}): İçindeki dosyalar ayıklandıktan sonra taranabilir.`);
+    details.push(t('sandboxArchive', { ext }));
   }
 
+  const sizeInMB = (size / (1024 * 1024)).toFixed(1);
   if (size > 100 * 1024 * 1024) {
-    details.push(`Büyük Dosya Boyutu (${(size / (1024 * 1024)).toFixed(1)} MB): Ağ ve cihaz kaynaklarını yüksek oranda kullanır.`);
+    details.push(t('sandboxLargeSize', { size: sizeInMB }));
   } else {
-    details.push(`Dosya boyutu güvenli sınırlar içerisinde (${(size / (1024 * 1024)).toFixed(1)} MB).`);
+    details.push(t('sandboxSafeSize', { size: sizeInMB }));
   }
 
-  details.push(`AES-256-GCM Uçtan Uca Şifreli WebRTC Tüneli Üzerinden Doğrulandı.`);
+  details.push(t('sandboxTunnelVerified'));
 
   score = Math.max(0, Math.min(100, score));
 
   let status: 'safe' | 'warning' | 'danger' = 'safe';
-  let label = 'Yüksek Güvenlik Puanı (%100 Temiz)';
+  let label = t('sandboxScoreClean');
 
   if (score <= 40) {
     status = 'danger';
-    label = `Kritik Uyarı: Riskli Dosya Türü (Güvenlik Puanı: %${score})`;
+    label = t('sandboxScoreDanger', { score });
   } else if (score <= 70) {
     status = 'warning';
-    label = `Dikkat: Potansiyel Script Riski (Güvenlik Puanı: %${score})`;
+    label = t('sandboxScoreWarning', { score });
   }
 
   return {
@@ -106,4 +122,3 @@ export function inspectFileSafety(filename: string, size: number, type: string):
     isExecutable,
   };
 }
-

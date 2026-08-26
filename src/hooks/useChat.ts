@@ -12,13 +12,6 @@ export function useChat(broadcastFn: (msg: PeerMessage) => void) {
     broadcastFnRef.current = broadcastFn;
   }, [broadcastFn]);
 
-  // Auto-scroll chat to bottom on new messages
-  useEffect(() => {
-    if (chatMessages.length > 0) {
-      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [chatMessages]);
-
   const sendChatMessage = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();

@@ -14,7 +14,7 @@ interface GhostChatProps {
   onSendMessage: (e: React.FormEvent) => void;
   onSendEmoji: (emoji: string) => void;
   onSendClipboard: () => void;
-  chatEndRef: React.RefObject<HTMLDivElement | null>;
+  chatEndRef?: React.RefObject<HTMLDivElement | null>;
   t: (key: string) => string;
 }
 
@@ -35,8 +35,30 @@ export const GhostChat = React.memo(function GhostChat({
   const [notepadText, setNotepadText] = useState('');
   const [copiedToast, setCopiedToast] = useState(false);
 
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const prevMessagesLengthRef = useRef(chatMessages.length);
   const emojiContainerRef = useRef<HTMLDivElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Auto-scroll messages container ONLY when a new message is received or sent
+  useEffect(() => {
+    if (chatMessages.length > prevMessagesLengthRef.current) {
+      if (messagesContainerRef.current) {
+        messagesContainerRef.current.scrollTo({
+          top: messagesContainerRef.current.scrollHeight,
+          behavior: 'smooth',
+        });
+      }
+    }
+    prevMessagesLengthRef.current = chatMessages.length;
+  }, [chatMessages.length]);
+
+  // Keep scroll at bottom when switching to chat tab if messages exist
+  useEffect(() => {
+    if (activeTab === 'chat' && messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
+  }, [activeTab]);
 
   // Close emoji picker when clicking outside
   useEffect(() => {
@@ -62,9 +84,9 @@ export const GhostChat = React.memo(function GhostChat({
       setCopiedToast(true);
       setTimeout(() => setCopiedToast(false), 2000);
     } catch {
-      alert('Panoya kopyalanamadı.');
+      alert(t('copyFailed'));
     }
-  }, [notepadText]);
+  }, [notepadText, t]);
 
   return (
     <motion.div
@@ -77,7 +99,7 @@ export const GhostChat = React.memo(function GhostChat({
       } relative transition-all duration-500`}
     >
       {!isConnected && (
-        <div className="absolute inset-0 z-10 bg-black/60 backdrop-blur-[2px] flex items-center justify-center">
+        <div className="absolute inset-0 z-10 bg-black/75 flex items-center justify-center transform-gpu">
           <div className="flex items-center gap-2 text-white/70 font-mono text-sm">
             <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
             {t('waitingPeer')}
@@ -120,7 +142,10 @@ export const GhostChat = React.memo(function GhostChat({
 
       {activeTab === 'chat' ? (
         <>
-          <div className="h-48 overflow-y-auto p-4 flex flex-col gap-3 scrollbar-hide">
+          <div
+            ref={messagesContainerRef}
+            className="h-48 overflow-y-auto p-4 flex flex-col gap-3 scrollbar-hide"
+          >
             {chatMessages.length === 0 ? (
               <div className="h-full flex items-center justify-center text-slate-500 text-sm p-4 text-center italic">
                 {t('chatEmpty')}
@@ -139,7 +164,7 @@ export const GhostChat = React.memo(function GhostChat({
                 </div>
               ))
             )}
-            <div ref={chatEndRef} />
+            {chatEndRef && <div ref={chatEndRef} />}
           </div>
 
           <form onSubmit={onSendMessage} className="p-3 bg-black/40 border-t border-white/5 flex gap-2 relative">
@@ -195,6 +220,9 @@ export const GhostChat = React.memo(function GhostChat({
               type="text"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+              }}
               placeholder={t('chatPlaceholder')}
               className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50 transition-colors"
               maxLength={200}
@@ -231,6 +259,9 @@ export const GhostChat = React.memo(function GhostChat({
           <textarea
             value={notepadText}
             onChange={(e) => setNotepadText(e.target.value)}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+            }}
             placeholder={t('notepadPlaceholder')}
             className="w-full h-44 bg-black/60 border border-purple-500/20 rounded-xl p-3 text-xs font-mono text-purple-100 focus:outline-none focus:border-purple-500/50 resize-none custom-scrollbar"
             aria-label="Encrypted ephemeral notepad"

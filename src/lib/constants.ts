@@ -10,24 +10,24 @@ export const DANGEROUS_EXTENSIONS = [
 ];
 
 export const EXPIRATION_OPTIONS = [
-  { id: 'burn', label: '🔥 İndirildiğinde İmha Et (Burn-on-Read)', sec: 0 },
-  { id: '10m', label: '⏱️ 10 Dakika Sonra İmha Et', sec: 600 },
-  { id: '1h', label: '⏱️ 1 Saat Sonra İmha Et', sec: 3600 },
-  { id: '24h', label: '⏱️ 24 Saat Sonra İmha Et', sec: 86400 },
+  { id: 'burn', label: '🔥 Burn on Read', sec: 0 },
+  { id: '10m', label: '⏱️ After 10 Minutes', sec: 600 },
+  { id: '1h', label: '⏱️ After 1 Hour', sec: 3600 },
+  { id: '24h', label: '⏱️ After 24 Hours', sec: 86400 },
 ];
 
 // ── Error Messages ──
 export const ERRORS = {
-  CONN_LOST: 'Gönderici ayrıldı veya bağlantı koptu.',
-  CONN_CLOSED: 'Bağlantı beklenmedik şekilde kapandı.',
-  PARSE_ERR: 'Veri ayrıştırma hatası: ',
-  SEND_CHUNK_ERR: 'Dosya parçası gönderilemedi: ',
-  PEER_NOT_FOUND: 'Oda bulunamadı. Lütfen oda kodunu kontrol edip tekrar deneyin.',
-  PEER_UNAVAILABLE: 'Oda henüz hazır değil veya kod hatalı. Lütfen göndericinin aktif olduğunu doğrulayın.',
-  ROOM_CODE_TAKEN: 'Oda kodu zaten kullanımda. Lütfen yeni bir kod oluşturun.',
-  DECRYPTION_ERR: 'Şifre çözme hatası. Şifreleme anahtarı veya veri bozuk.',
-  CONN_ERR: 'Bağlantı hatası',
-  SENDER_NOT_RESPONDING: 'Gönderici yanıt vermiyor. Lütfen göndericinin oda ekranının açık olduğunu doğrulayın.',
+  CONN_LOST: 'Sender disconnected or connection was lost.',
+  CONN_CLOSED: 'Connection closed unexpectedly.',
+  PARSE_ERR: 'Data parsing error: ',
+  SEND_CHUNK_ERR: 'Failed to send chunk: ',
+  PEER_NOT_FOUND: 'Room not found. Please verify the code and try again.',
+  PEER_UNAVAILABLE: 'Room is not ready or code is incorrect. Ensure sender is active.',
+  ROOM_CODE_TAKEN: 'Room code is already in use. Please generate a new code.',
+  DECRYPTION_ERR: 'Decryption failed. Encryption key or data is corrupted.',
+  CONN_ERR: 'Connection error',
+  SENDER_NOT_RESPONDING: 'Sender is not responding. Ensure sender has room open.',
 } as const;
 
 // ── PeerJS ICE Config ──

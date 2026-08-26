@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Peer } from 'peerjs';
-import type { DataConnection, MediaConnection } from 'peerjs';
+import type { DataConnection } from 'peerjs';
 import {
   CHUNK_SIZE,
   PIPELINE_WINDOW_SIZE,
@@ -21,6 +21,7 @@ interface UsePeerConnectionProps {
   onTransferComplete: () => void;
   onChatMessage: (text: string) => void;
   clearChatMessages: () => void;
+  t?: (key: string, params?: Record<string, string | number>) => string;
 }
 
 export function usePeerConnection({
@@ -28,6 +29,7 @@ export function usePeerConnection({
   onTransferComplete,
   onChatMessage,
   clearChatMessages,
+  t,
 }: UsePeerConnectionProps) {
   const [mode, setMode] = useState<'idle' | 'send' | 'receive'>('idle');
   const [shareCode, setShareCode] = useState('');
@@ -44,13 +46,10 @@ export function usePeerConnection({
   const [copied, setCopied] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [expirationSec, setExpirationSec] = useState(0);
-  const [isVoiceActive, setIsVoiceActive] = useState(false);
 
   const peerRef = useRef<Peer | null>(null);
   const connRef = useRef<DataConnection | null>(null);
   const multiConnsRef = useRef<DataConnection[]>([]);
-  const localStreamRef = useRef<MediaStream | null>(null);
-  const activeCallRef = useRef<MediaConnection | null>(null);
   const fileMetaRef = useRef<FileMeta | null>(null);
   const receivedChunksRef = useRef<ArrayBuffer[]>([]);
   const receivedBytesRef = useRef(0);
@@ -87,34 +86,10 @@ export function usePeerConnection({
     }
   }, []);
 
-  const stopVoiceTalkie = useCallback(() => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((track) => track.stop());
-      localStreamRef.current = null;
-    }
-    if (activeCallRef.current) {
-      try {
-        activeCallRef.current.close();
-      } catch {
-        // ignore
-      }
-      activeCallRef.current = null;
-    }
-    const audioEl = document.getElementById('phantom-audio') as HTMLAudioElement;
-    if (audioEl) {
-      audioEl.pause();
-      audioEl.srcObject = null;
-      audioEl.remove();
-    }
-    setIsVoiceActive(false);
-  }, []);
-
   const resetConnection = useCallback(() => {
     clearKeyCache();
     cryptoKeyRef.current = null;
     transferCompletedRef.current = false;
-
-    stopVoiceTalkie();
 
     if (connRef.current) {
       try {
@@ -171,50 +146,16 @@ export function usePeerConnection({
     setTransferSpeed(null);
     setTransferETA(null);
     lastSpeedCalcRef.current = { time: 0, bytes: 0 };
-  }, [clearChatMessages, stopVoiceTalkie]);
-
-  const attachMediaStream = useCallback((remoteStream: MediaStream) => {
-    let audioEl = document.getElementById('phantom-audio') as HTMLAudioElement;
-    if (!audioEl) {
-      audioEl = document.createElement('audio');
-      audioEl.id = 'phantom-audio';
-      audioEl.autoplay = true;
-      document.body.appendChild(audioEl);
-    }
-    audioEl.srcObject = remoteStream;
-    audioEl.play().catch(() => {});
-  }, []);
-
-  const toggleVoiceTalkie = useCallback(async () => {
-    if (isVoiceActive) {
-      stopVoiceTalkie();
-    } else {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        localStreamRef.current = stream;
-        setIsVoiceActive(true);
-
-        if (peerRef.current && connRef.current?.open) {
-          const call = peerRef.current.call(connRef.current.peer, stream);
-          activeCallRef.current = call;
-          call.on('stream', attachMediaStream);
-        }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err);
-        alert('Mikrofon erişim izni verilmedi: ' + message);
-        stopVoiceTalkie();
-      }
-    }
-  }, [isVoiceActive, stopVoiceTalkie, attachMediaStream]);
+  }, [clearChatMessages]);
 
   const handleBurnOnDownload = useCallback(() => {
     if (expirationSec === 0) {
       setTimeout(() => {
         resetConnection();
-        alert('🔥 Dosya indirildi! Güvenlik protokolü gereği oda ve bellekteki tüm izler imha edildi.');
+        alert(t ? t('burnNotice') : '🔥 File downloaded! Room and volatile memory purged as per zero-trace protocol.');
       }, 1500);
     }
-  }, [expirationSec, resetConnection]);
+  }, [expirationSec, resetConnection, t]);
 
   const finalizeDownload = useCallback((name: string, type: string) => {
     const blob = new Blob(receivedChunksRef.current, { type: type || 'application/octet-stream' });
@@ -264,10 +205,10 @@ export function usePeerConnection({
         calculateSpeedAndETA(end, file.size);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
-        setErrorStatus(ERRORS.SEND_CHUNK_ERR + message);
+        setErrorStatus((t ? t('errSendChunk') : ERRORS.SEND_CHUNK_ERR) + message);
       }
     },
-    [shareCode, fileToShareRef, calculateSpeedAndETA],
+    [shareCode, fileToShareRef, calculateSpeedAndETA, t],
   );
 
   const initSender = useCallback(() => {
@@ -281,16 +222,6 @@ export function usePeerConnection({
     const peer = new Peer(peerId, PEER_CONFIG);
 
     peer.on('open', () => {});
-
-    peer.on('call', (call) => {
-      activeCallRef.current = call;
-      if (localStreamRef.current) {
-        call.answer(localStreamRef.current);
-      } else {
-        call.answer();
-      }
-      call.on('stream', attachMediaStream);
-    });
 
     peer.on('connection', (conn) => {
       connRef.current = conn;
@@ -330,7 +261,7 @@ export function usePeerConnection({
           connRef.current = null;
           setIsConnected(false);
           if (mode !== 'send') {
-            setErrorStatus(ERRORS.CONN_LOST);
+            setErrorStatus(t ? t('errConnLost') : ERRORS.CONN_LOST);
           }
         }
       });
@@ -343,14 +274,14 @@ export function usePeerConnection({
 
     peer.on('error', (err: PeerCustomError) => {
       if (err.type === 'unavailable-id') {
-        setErrorStatus(ERRORS.ROOM_CODE_TAKEN);
+        setErrorStatus(t ? t('errRoomTaken') : ERRORS.ROOM_CODE_TAKEN);
       } else {
-        setErrorStatus(ERRORS.CONN_ERR + ': ' + err.message);
+        setErrorStatus((t ? t('errConn') : ERRORS.CONN_ERR) + ': ' + err.message);
       }
     });
 
     peerRef.current = peer;
-  }, [shareCode, resetConnection, sendChunk, fileToShareRef, onChatMessage, attachMediaStream, mode]);
+  }, [shareCode, resetConnection, sendChunk, fileToShareRef, onChatMessage, mode, t]);
 
   // Auto-init sender room when in send mode and shareCode is ready
   useEffect(() => {
@@ -386,7 +317,7 @@ export function usePeerConnection({
           if (connected) return;
           if (attempts >= MAX_CONNECT_ATTEMPTS) {
             if (!connected) {
-              setErrorStatus(ERRORS.SENDER_NOT_RESPONDING);
+              setErrorStatus(t ? t('errSenderNotResponding') : ERRORS.SENDER_NOT_RESPONDING);
               setTransferProgress(-1);
               setIsConnected(false);
             }
@@ -523,9 +454,9 @@ export function usePeerConnection({
                 message.toLowerCase().includes('operationerror') ||
                 message.toLowerCase().includes('ciphertext')
               ) {
-                setErrorStatus(ERRORS.DECRYPTION_ERR);
+                setErrorStatus(t ? t('errDecryption') : ERRORS.DECRYPTION_ERR);
               } else {
-                setErrorStatus(ERRORS.PARSE_ERR + message);
+                setErrorStatus((t ? t('errParse') : ERRORS.PARSE_ERR) + message);
               }
             }
           });
@@ -539,7 +470,7 @@ export function usePeerConnection({
             if (!connected && attempts < MAX_CONNECT_ATTEMPTS) {
               connectTimeoutRef.current = setTimeout(tryConnect, 1500);
             } else if (!connected) {
-              setErrorStatus(ERRORS.CONN_ERR + ': ' + err.message);
+              setErrorStatus((t ? t('errConn') : ERRORS.CONN_ERR) + ': ' + err.message);
               setTransferProgress(-1);
             }
           });
@@ -551,7 +482,7 @@ export function usePeerConnection({
               if (attempts < MAX_CONNECT_ATTEMPTS) {
                 tryConnect();
               } else {
-                setErrorStatus(ERRORS.SENDER_NOT_RESPONDING);
+                setErrorStatus(t ? t('errSenderNotResponding') : ERRORS.SENDER_NOT_RESPONDING);
                 setTransferProgress(-1);
                 setIsConnected(false);
               }
@@ -562,28 +493,18 @@ export function usePeerConnection({
         tryConnect();
       });
 
-      peer.on('call', (call) => {
-        activeCallRef.current = call;
-        if (localStreamRef.current) {
-          call.answer(localStreamRef.current);
-        } else {
-          call.answer();
-        }
-        call.on('stream', attachMediaStream);
-      });
-
       peer.on('error', (perr: PeerCustomError) => {
         if (perr.type === 'peer-unavailable') {
-          setErrorStatus(ERRORS.PEER_UNAVAILABLE);
+          setErrorStatus(t ? t('errPeerUnavailable') : ERRORS.PEER_UNAVAILABLE);
         } else {
-          setErrorStatus(ERRORS.PEER_NOT_FOUND);
+          setErrorStatus(t ? t('errPeerNotFound') : ERRORS.PEER_NOT_FOUND);
         }
         setTransferProgress(-1);
       });
 
       peerRef.current = peer;
     },
-    [resetConnection, finalizeDownload, calculateSpeedAndETA, onChatMessage, attachMediaStream],
+    [resetConnection, finalizeDownload, calculateSpeedAndETA, onChatMessage, t],
   );
 
   const broadcastToAll = useCallback(
@@ -652,8 +573,6 @@ export function usePeerConnection({
     setShowQR,
     expirationSec,
     setExpirationSec,
-    isVoiceActive,
-    toggleVoiceTalkie,
     handleBurnOnDownload,
     initSender,
     connectAsReceiver,
@@ -661,3 +580,5 @@ export function usePeerConnection({
     broadcastToAll,
   };
 }
+
+export default usePeerConnection;

@@ -25,13 +25,13 @@ export const IdleView = React.memo(function IdleView({
       <section aria-label="Transfer Actions" className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <button
           onClick={() => setMode('send')}
-          className="relative overflow-hidden group p-8 rounded-3xl bg-gradient-to-br from-emerald-500/10 via-black/60 to-black/80 border border-emerald-500/30 hover:border-emerald-400 transition-all duration-300 shadow-2xl hover:shadow-[0_0_30px_rgba(16,185,129,0.25)] text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+          className="relative overflow-hidden group p-8 rounded-3xl bg-gradient-to-br from-emerald-500/10 via-black/60 to-black/80 border border-emerald-500/30 hover:border-emerald-400 transition-all duration-300 shadow-2xl hover:shadow-[0_0_30px_rgba(16,185,129,0.25)] text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transform-gpu contain-layout"
           aria-label="Send files securely"
         >
-          <div className="absolute top-0 right-0 p-6 text-emerald-500/10 group-hover:text-emerald-500/20 group-hover:scale-125 transition-all">
+          <div className="absolute top-0 right-0 p-6 text-emerald-500/10 group-hover:text-emerald-500/20 group-hover:scale-125 transition-all transform-gpu">
             <Upload className="w-24 h-24 -mr-4 -mt-4" />
           </div>
-          <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-emerald-500 transition-all">
+          <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-emerald-500 transition-all transform-gpu">
             <Upload className="w-7 h-7 text-emerald-400 group-hover:text-black transition-colors" />
           </div>
           <h2 className="text-xl font-black text-white tracking-tight mb-1 flex items-center gap-2">
@@ -43,13 +43,13 @@ export const IdleView = React.memo(function IdleView({
 
         <button
           onClick={() => setMode('receive')}
-          className="relative overflow-hidden group p-8 rounded-3xl bg-gradient-to-br from-cyan-500/10 via-black/60 to-black/80 border border-cyan-500/30 hover:border-cyan-400 transition-all duration-300 shadow-2xl hover:shadow-[0_0_30px_rgba(6,182,212,0.25)] text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+          className="relative overflow-hidden group p-8 rounded-3xl bg-gradient-to-br from-cyan-500/10 via-black/60 to-black/80 border border-cyan-500/30 hover:border-cyan-400 transition-all duration-300 shadow-2xl hover:shadow-[0_0_30px_rgba(6,182,212,0.25)] text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transform-gpu contain-layout"
           aria-label="Receive files securely"
         >
-          <div className="absolute top-0 right-0 p-6 text-cyan-500/10 group-hover:text-cyan-500/20 group-hover:scale-125 transition-all">
+          <div className="absolute top-0 right-0 p-6 text-cyan-500/10 group-hover:text-cyan-500/20 group-hover:scale-125 transition-all transform-gpu">
             <Download className="w-24 h-24 -mr-4 -mt-4" />
           </div>
-          <div className="w-14 h-14 rounded-2xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-cyan-500 transition-all">
+          <div className="w-14 h-14 rounded-2xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-cyan-500 transition-all transform-gpu">
             <Download className="w-7 h-7 text-cyan-400 group-hover:text-black transition-colors" />
           </div>
           <h2 className="text-xl font-black text-white tracking-tight mb-1 flex items-center gap-2">

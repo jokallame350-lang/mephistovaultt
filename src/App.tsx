@@ -87,6 +87,7 @@ export function App() {
     onTransferComplete,
     onChatMessage,
     clearChatMessages,
+    t,
   });
 
   // Initialize file handler
@@ -180,9 +181,16 @@ export function App() {
       const newCode = generateCode();
       setPeerShareCode(newCode);
     }
-    // Scroll to top on mode change to prevent old scroll offsets
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [peerMode, peerShareCode, setPeerShareCode]);
+
+  // Scroll to top only when mode actually changes to prevent old scroll offsets
+  const prevModeRef = useRef(peerMode);
+  useEffect(() => {
+    if (prevModeRef.current !== peerMode) {
+      prevModeRef.current = peerMode;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [peerMode]);
 
   const handleCopyLink = useCallback(async () => {
     const textToCopy = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(peerShareCode)}`;
@@ -245,6 +253,17 @@ export function App() {
         theme === 'light' ? 'bg-slate-100 text-slate-900' : ''
       }`}
     >
+      {/* Isolated Static Fixed Ambient Background Layer (Zero Scroll Repaint) */}
+      <div
+        className="fixed inset-0 pointer-events-none overflow-hidden z-0 contain-strict will-change-transform transform-gpu"
+        aria-hidden="true"
+      >
+        <div className="ambient-bg-radial" />
+        <div className="ambient-orb ambient-orb-1" />
+        <div className="ambient-orb ambient-orb-2" />
+        <div className="ambient-orb ambient-orb-3" />
+      </div>
+
       <Header
         isConnected={peer.isConnected}
         connTime={peer.connTime}
@@ -290,8 +309,6 @@ export function App() {
               setShowQR={peer.setShowQR}
               expirationSec={peer.expirationSec}
               setExpirationSec={peer.setExpirationSec}
-              isVoiceActive={peer.isVoiceActive}
-              toggleVoiceTalkie={peer.toggleVoiceTalkie}
               onCopy={handleCopyLink}
               onDownloadQR={handleDownloadQR}
               onClose={handleSendClose}
@@ -319,8 +336,6 @@ export function App() {
               zipContents={fileHandler.zipContents}
               showZipPreview={fileHandler.showZipPreview}
               setShowZipPreview={fileHandler.setShowZipPreview}
-              isVoiceActive={peer.isVoiceActive}
-              toggleVoiceTalkie={peer.toggleVoiceTalkie}
               handleBurnOnDownload={peer.handleBurnOnDownload}
               onConnect={peer.connectAsReceiver}
               onClose={handleReceiveClose}

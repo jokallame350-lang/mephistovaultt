@@ -95,7 +95,7 @@ export const SEOFooter = React.memo(function SEOFooter({ lang = 'en', setLang }:
   }, [isTr]);
 
   return (
-    <footer className="mt-16 border-t border-white/10 pt-12 pb-12 text-left space-y-14 w-full content-visibility-auto">
+    <footer className="mt-16 border-t border-white/10 pt-12 pb-12 text-left space-y-14 w-full content-visibility-auto contain-layout">
       {/* FAQ Schema Script for Google Rich Snippets */}
       <script
         type="application/ld+json"
@@ -138,7 +138,7 @@ export const SEOFooter = React.memo(function SEOFooter({ lang = 'en', setLang }:
           {isTr ? 'Öne Çıkan Güvenlik ve Performans Özellikleri' : 'Core Architecture & Security Highlights'}
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <article className="bg-white/[0.02] border border-white/10 hover:border-emerald-500/30 rounded-2xl p-5 transition-all duration-300 group">
+          <article className="bg-white/[0.02] border border-white/10 hover:border-emerald-500/30 rounded-2xl p-5 transition-all duration-300 group transform-gpu contain-layout">
             <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
               <Lock className="w-5 h-5 text-emerald-400" />
             </div>
@@ -150,7 +150,7 @@ export const SEOFooter = React.memo(function SEOFooter({ lang = 'en', setLang }:
             </p>
           </article>
 
-          <article className="bg-white/[0.02] border border-white/10 hover:border-cyan-500/30 rounded-2xl p-5 transition-all duration-300 group">
+          <article className="bg-white/[0.02] border border-white/10 hover:border-cyan-500/30 rounded-2xl p-5 transition-all duration-300 group transform-gpu contain-layout">
             <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
               <ServerOff className="w-5 h-5 text-cyan-400" />
             </div>
@@ -162,7 +162,7 @@ export const SEOFooter = React.memo(function SEOFooter({ lang = 'en', setLang }:
             </p>
           </article>
 
-          <article className="bg-white/[0.02] border border-white/10 hover:border-red-500/30 rounded-2xl p-5 transition-all duration-300 group">
+          <article className="bg-white/[0.02] border border-white/10 hover:border-red-500/30 rounded-2xl p-5 transition-all duration-300 group transform-gpu contain-layout">
             <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
               <Flame className="w-5 h-5 text-red-400" />
             </div>
@@ -174,7 +174,7 @@ export const SEOFooter = React.memo(function SEOFooter({ lang = 'en', setLang }:
             </p>
           </article>
 
-          <article className="bg-white/[0.02] border border-white/10 hover:border-purple-500/30 rounded-2xl p-5 transition-all duration-300 group">
+          <article className="bg-white/[0.02] border border-white/10 hover:border-purple-500/30 rounded-2xl p-5 transition-all duration-300 group transform-gpu contain-layout">
             <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
               <Cpu className="w-5 h-5 text-purple-400" />
             </div>
@@ -244,7 +244,7 @@ export const SEOFooter = React.memo(function SEOFooter({ lang = 'en', setLang }:
             return (
               <div
                 key={idx}
-                className={`border rounded-2xl transition-all duration-300 overflow-hidden ${
+                className={`border rounded-2xl transition-all duration-300 overflow-hidden transform-gpu contain-layout ${
                   isOpen
                     ? 'bg-white/[0.04] border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.1)]'
                     : 'bg-white/[0.015] border-white/10 hover:border-white/20'
@@ -272,10 +272,12 @@ export const SEOFooter = React.memo(function SEOFooter({ lang = 'en', setLang }:
                     <p className="font-medium text-slate-200">
                       {isTr ? item.aTr : item.aEn}
                     </p>
-                    <div className="pt-2 flex items-center gap-2 text-[11px] text-slate-400 font-mono italic">
-                      <span>Alternate Language:</span>
-                      <span>{isTr ? item.qEn : item.qTr}</span>
-                    </div>
+                    {isTr && (
+                      <div className="pt-2 flex items-center gap-2 text-[11px] text-slate-400 font-mono italic">
+                        <span>Alternate Language:</span>
+                        <span>{item.qEn}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -284,18 +286,26 @@ export const SEOFooter = React.memo(function SEOFooter({ lang = 'en', setLang }:
         </div>
       </section>
 
-      {/* 5. SECTION: Comprehensive SEO Content Description Block (SEO İçerik Açıklama Bloğu) */}
+      {/* 5. SECTION: Comprehensive SEO Content Description Block */}
       <article aria-labelledby="sec-seo-article-title" className="bg-gradient-to-br from-black/80 via-emerald-950/10 to-black/80 border border-emerald-500/20 rounded-3xl p-6 sm:p-8 space-y-6">
         <h2 id="sec-seo-article-title" className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
           <CloudOff className="w-6 h-6 text-emerald-400 shrink-0" />
           {isTr
             ? 'Neden MephistoVault? Bulutsuz & Şifreli P2P Transfer Teknolojisi'
-            : 'Why MephistoVault? The Next Generation Serverless Encrypted File Transfer'}
+            : 'Why MephistoVault? Zero-Trace Serverless Encrypted File Sharing'}
         </h2>
 
         <div className="text-slate-300 text-xs sm:text-sm leading-relaxed space-y-4">
           <p>
-            Geleneksel dosya paylaşım servisleri (WeTransfer, Google Drive, Dropbox vb.) dosyalarınızı kendi merkezi sunucularına yükler. Bu durum verilerinizin sunucularda saklanmasına, işlenmesine ve siber saldırılara maruz kalmasına yol açabilir. <strong>MephistoVault</strong> ise <strong className="text-white">Sıfır Bilgi (Zero-Knowledge)</strong> mimarisi üzerine kuruludur. Dosyalarınız hiçbir üçüncü taraf sunucuya temas etmez.
+            {isTr ? (
+              <>
+                Geleneksel dosya paylaşım servisleri (WeTransfer, Google Drive, Dropbox vb.) dosyalarınızı kendi merkezi sunucularına yükler. Bu durum verilerinizin sunucularda saklanmasına, işlenmesine ve siber saldırılara maruz kalmasına yol açabilir. <strong>MephistoVault</strong> ise <strong className="text-white">Sıfır Bilgi (Zero-Knowledge)</strong> mimarisi üzerine kuruludur. Dosyalarınız hiçbir üçüncü taraf sunucuya temas etmez.
+              </>
+            ) : (
+              <>
+                Traditional cloud sharing services (WeTransfer, Google Drive, Dropbox, etc.) upload your confidential files to remote central servers. This exposes your sensitive data to server-side retention, data breaches, and tracking. <strong>MephistoVault</strong> is engineered strictly on a <strong className="text-white">Zero-Knowledge architecture</strong>: your files never touch any intermediary server.
+              </>
+            )}
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-4">
@@ -305,10 +315,21 @@ export const SEOFooter = React.memo(function SEOFooter({ lang = 'en', setLang }:
                 {isTr ? 'Geleneksel Bulut Servisleri' : 'Traditional Cloud Services'}
               </h3>
               <ul className="text-xs text-slate-400 space-y-1 list-disc list-inside">
-                <li>Dosyalar üçüncü taraf sunucularda saklanır</li>
-                <li>Sunucu tarafında log ve IP metadata kaydı tutulur</li>
-                <li>Dosya boyutu ve indirme hızında kısıtlamalar vardır</li>
-                <li>Veri sızıntısı ve hacklenme riski yüksektir</li>
+                {isTr ? (
+                  <>
+                    <li>Dosyalar üçüncü taraf sunucularda saklanır</li>
+                    <li>Sunucu tarafında log ve IP metadata kaydı tutulur</li>
+                    <li>Dosya boyutu ve indirme hızında kısıtlamalar vardır</li>
+                    <li>Veri sızıntısı ve hacklenme riski yüksektir</li>
+                  </>
+                ) : (
+                  <>
+                    <li>Files stored indefinitely on third-party servers</li>
+                    <li>Server-side logging and IP metadata tracking</li>
+                    <li>File size limitations and bandwidth throttling</li>
+                    <li>High vulnerability to data leaks and cloud breaches</li>
+                  </>
+                )}
               </ul>
             </div>
 
@@ -318,16 +339,35 @@ export const SEOFooter = React.memo(function SEOFooter({ lang = 'en', setLang }:
                 MephistoVault P2P Protocol
               </h3>
               <ul className="text-xs text-emerald-200/80 space-y-1 list-disc list-inside">
-                <li>%100 Sunucusuz, tarayıcıdan tarayıcıya doğrudan aktarım</li>
-                <li>Sıfır kayıt, sıfır log, sıfır IP takibi</li>
-                <li>Dosya boyutu kısıtlaması ve bant genişliği limiti yok</li>
-                <li>Askeri seviye AES-256-GCM ile anında kendini imha</li>
+                {isTr ? (
+                  <>
+                    <li>%100 Sunucusuz, tarayıcıdan tarayıcıya doğrudan aktarım</li>
+                    <li>Sıfır kayıt, sıfır log, sıfır IP takibi</li>
+                    <li>Dosya boyutu kısıtlaması ve bant genişliği limiti yok</li>
+                    <li>Askeri seviye AES-256-GCM ile anında kendini imha</li>
+                  </>
+                ) : (
+                  <>
+                    <li>100% Serverless, direct browser-to-browser P2P tunnel</li>
+                    <li>Zero logs, zero activity tracking, zero metadata retention</li>
+                    <li>No file size limits and no bandwidth throttling</li>
+                    <li>Military-grade AES-256-GCM with instant self-destruction</li>
+                  </>
+                )}
               </ul>
             </div>
           </div>
 
           <p>
-            MephistoVault, <strong>WebRTC (Web Real-Time Communication)</strong> protokolünün sunduğu Peer-to-Peer DataChannels yeteneğini kullanarak tarayıcınız ile alıcının tarayıcısı arasında şifreli bir dijital tünel açar. Şifreleme anahtarı (Vault Code) yalnızca gönderici ve alıcı tarafından bilindiği için, veriler ağ seviyesinde bile dinlenemez veya kopyalanamaz.
+            {isTr ? (
+              <>
+                MephistoVault, <strong>WebRTC (Web Real-Time Communication)</strong> protokolünün sunduğu Peer-to-Peer DataChannels yeteneğini kullanarak tarayıcınız ile alıcının tarayıcısı arasında şifreli bir dijital tünel açar. Şifreleme anahtarı (Vault Code) yalnızca gönderici ve alıcı tarafından bilindiği için, veriler ağ seviyesinde bile dinlenemez veya kopyalanamaz.
+              </>
+            ) : (
+              <>
+                MephistoVault utilizes <strong>WebRTC (Web Real-Time Communication) DataChannels</strong> to establish a direct, encrypted digital pipeline between sender and receiver browsers. Since the cryptographic key (Vault Code) resides only in client volatile memory, your data cannot be intercepted, snooped, or decrypted in transit.
+              </>
+            )}
           </p>
         </div>
 
@@ -337,20 +377,36 @@ export const SEOFooter = React.memo(function SEOFooter({ lang = 'en', setLang }:
             {isTr ? 'İlişkili Arama Terimleri & Anahtar Kelimeler' : 'Indexed Search Keywords & Related Topics'}
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {[
-              'Encrypted File Transfer',
-              'P2P File Sharing',
-              'Zero Knowledge Vault',
-              'WebRTC Peer to Peer',
-              'Burn-on-Read Self Destruct',
-              'AES-256-GCM Encryption',
-              'Şifreli Dosya Gönderme',
-              'İz Bırakmayan Transfer',
-              'Bulutsuz Dosya Paylaşımı',
-              'Güvenli Dosya Transferi',
-              'No Log File Drop',
-              'Anonymous File Transfer',
-            ].map((tag, i) => (
+            {(isTr
+              ? [
+                  'Encrypted File Transfer',
+                  'P2P File Sharing',
+                  'Zero Knowledge Vault',
+                  'WebRTC Peer to Peer',
+                  'Burn-on-Read Self Destruct',
+                  'AES-256-GCM Encryption',
+                  'Şifreli Dosya Gönderme',
+                  'İz Bırakmayan Transfer',
+                  'Bulutsuz Dosya Paylaşımı',
+                  'Güvenli Dosya Transferi',
+                  'No Log File Drop',
+                  'Anonymous File Transfer',
+                ]
+              : [
+                  'Encrypted File Transfer',
+                  'P2P File Sharing',
+                  'Zero Knowledge Vault',
+                  'WebRTC Peer to Peer',
+                  'Burn-on-Read Self Destruct',
+                  'AES-256-GCM Encryption',
+                  'Private File Sharing',
+                  'Untraceable Drop',
+                  'Serverless File Delivery',
+                  'Direct Browser Transfer',
+                  'No Log File Drop',
+                  'Anonymous File Transfer',
+                ]
+            ).map((tag, i) => (
               <span
                 key={i}
                 className="text-[10px] bg-white/5 border border-white/10 text-slate-400 px-2.5 py-1 rounded-md hover:text-white transition-colors"

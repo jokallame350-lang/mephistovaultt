@@ -19,7 +19,6 @@ import {
   Radio,
   Check,
   AlertTriangle,
-  Mic,
   Database,
   RefreshCw,
   Keyboard,
@@ -51,12 +50,10 @@ interface ReceiveViewProps {
   zipContents: ZipEntry[];
   showZipPreview: boolean;
   setShowZipPreview: (v: boolean) => void;
-  isVoiceActive?: boolean;
-  toggleVoiceTalkie?: () => void;
   handleBurnOnDownload?: () => void;
   onConnect: (code: string) => void;
   onClose: () => void;
-  t: (key: string) => string;
+  t: (key: string, params?: Record<string, string | number>) => string;
 }
 
 const MediaPreview = React.memo(function MediaPreview({
@@ -126,8 +123,6 @@ export const ReceiveView = React.memo(function ReceiveView({
   zipContents,
   showZipPreview,
   setShowZipPreview,
-  isVoiceActive = false,
-  toggleVoiceTalkie,
   handleBurnOnDownload,
   onConnect,
   onClose,
@@ -219,8 +214,8 @@ export const ReceiveView = React.memo(function ReceiveView({
 
   const safetyReport = React.useMemo(() => {
     if (!completedFile) return null;
-    return inspectFileSafety(completedFile.name, completedFile.blob.size, completedFile.type);
-  }, [completedFile]);
+    return inspectFileSafety(completedFile.name, completedFile.blob.size, completedFile.type, t);
+  }, [completedFile, t]);
 
   return (
     <motion.div
@@ -323,7 +318,7 @@ export const ReceiveView = React.memo(function ReceiveView({
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="mt-4 border border-cyan-500/30 rounded-2xl overflow-hidden bg-black/90 shadow-xl"
+                  className="mt-4 border border-cyan-500/30 rounded-2xl overflow-hidden bg-black/90 shadow-xl transform-gpu"
                 >
                   <div className="p-3 bg-cyan-500/10 flex items-center justify-between border-b border-cyan-500/20">
                     <div className="flex items-center gap-2 text-cyan-400 text-xs font-bold font-mono">
@@ -452,29 +447,6 @@ export const ReceiveView = React.memo(function ReceiveView({
           </div>
         ) : (
           <div className="flex flex-col items-center py-4">
-            {/* Phantom Voice Walkie Talkie Controls */}
-            {isConnected && (
-              <div className="w-full mb-6 p-3 bg-purple-500/10 border border-purple-500/20 rounded-2xl flex items-center justify-between">
-                <div className="flex items-center gap-2 text-purple-300 text-xs font-bold font-mono">
-                  <Radio className="w-4 h-4 text-purple-400 animate-pulse" />
-                  <span>{t('phantomVoice')}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={toggleVoiceTalkie}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md cursor-pointer focus:outline-none ${
-                    isVoiceActive
-                      ? 'bg-red-500 hover:bg-red-400 text-white animate-pulse'
-                      : 'bg-purple-500 hover:bg-purple-400 text-white'
-                  }`}
-                  aria-label={isVoiceActive ? 'Disable Microphone' : 'Enable Microphone'}
-                  aria-pressed={isVoiceActive}
-                >
-                  <Mic className="w-3.5 h-3.5" /> {isVoiceActive ? t('micMute') : t('micActive')}
-                </button>
-              </div>
-            )}
-
             {fileMeta && (
               <div className="w-full space-y-3 mb-6">
                 <div className="w-full flex items-center gap-4 bg-black/40 border border-white/5 rounded-xl p-4">
@@ -527,7 +499,7 @@ export const ReceiveView = React.memo(function ReceiveView({
                 </div>
                 <div className="flex items-center justify-center gap-1.5 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full w-fit mx-auto text-emerald-400 text-xs font-bold font-mono">
                   <Shield className="w-3.5 h-3.5" />
-                  <span>SHA-256 verified • E2E Integrity Match</span>
+                  <span>{t('sandboxShaVerified')}</span>
                 </div>
                 <p className="text-green-500 font-bold text-xl mb-1">{t('complete')}</p>
                 <p className="text-slate-400 text-sm mb-2">{t('readySave')}</p>
@@ -593,7 +565,7 @@ export const ReceiveView = React.memo(function ReceiveView({
                         if (handleBurnOnDownload) handleBurnOnDownload();
                       } catch (err: unknown) {
                         const message = err instanceof Error ? err.message : String(err);
-                        alert('Hafıza kasasına yazma hatası: ' + message);
+                        alert(`${t('memoryVaultError')}: ${message}`);
                       }
                     }}
                     className="bg-white/5 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-500/30 text-cyan-300 hover:text-cyan-100 font-bold py-2.5 px-4 w-full rounded-2xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer"
@@ -661,7 +633,7 @@ export const ReceiveView = React.memo(function ReceiveView({
                                         }
                                       } catch (err: unknown) {
                                         const message = err instanceof Error ? err.message : String(err);
-                                        alert('Dosya çıkarılamadı: ' + message);
+                                        alert(`${t('extractError')}: ${message}`);
                                       }
                                     }}
                                     className="px-2 py-1 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 shrink-0 cursor-pointer"
