@@ -13,6 +13,7 @@ import ReceiveView from './components/ReceiveView';
 import GhostChat from './components/GhostChat';
 import NearbyDevices from './components/NearbyDevices';
 import SEOFooter from './components/SEOFooter';
+import GlobalDropzone from './components/GlobalDropzone';
 import { playTransferSound, copyToClipboard, downloadQRCode, generateCode, parseRoomCode } from './lib/utils';
 
 import type { PeerMessage } from './types';
@@ -90,11 +91,15 @@ export function App() {
     t,
   });
 
+  const setPeerMode = peer.setMode;
+  const onFilesProcessed = useCallback(() => {
+    setPeerMode('send');
+  }, [setPeerMode]);
+
   // Initialize file handler
-  const fileHandler = useFileHandler(peer.completedFile);
+  const fileHandler = useFileHandler(peer.completedFile, onFilesProcessed);
 
   const processFiles = fileHandler.processFiles;
-  const setPeerMode = peer.setMode;
 
   // Web Share Target API: Parse shared text or link from mobile share menu
   useEffect(() => {
@@ -233,14 +238,14 @@ export function App() {
     [setPeerShareCode, setPeerMode, inviteDevice],
   );
 
-  const setFileToShare = fileHandler.setFileToShare;
+  const clearFiles = fileHandler.clearFiles;
 
   const handleSendClose = useCallback(() => {
     setPeerShareCode('');
-    setFileToShare(null);
+    clearFiles();
     peerResetConnection();
     setPeerMode('idle');
-  }, [setPeerShareCode, setFileToShare, peerResetConnection, setPeerMode]);
+  }, [setPeerShareCode, clearFiles, peerResetConnection, setPeerMode]);
 
   const handleReceiveClose = useCallback(() => {
     peerResetConnection();
@@ -264,6 +269,17 @@ export function App() {
         <div className="ambient-orb ambient-orb-3" />
       </div>
 
+      {/* Global Full-Screen Holographic Drag & Drop Indicator */}
+      <AnimatePresence>
+        {fileHandler.isGlobalDragging && (
+          <GlobalDropzone
+            onDragLeave={fileHandler.handleGlobalDragLeave}
+            onDrop={fileHandler.handleGlobalDrop}
+            t={t}
+          />
+        )}
+      </AnimatePresence>
+
       <Header
         isConnected={peer.isConnected}
         connTime={peer.connTime}
@@ -286,6 +302,11 @@ export function App() {
             <SendView
               fileToShare={fileHandler.fileToShare}
               setFileToShare={fileHandler.setFileToShare}
+              selectedFiles={fileHandler.selectedFiles}
+              totalPayloadSize={fileHandler.totalPayloadSize}
+              onRemoveFile={fileHandler.removeFile}
+              onClearFiles={fileHandler.clearFiles}
+              onAddFiles={fileHandler.addFiles}
               isZipping={fileHandler.isZipping}
               zipProgress={fileHandler.zipProgress}
               isDragging={fileHandler.isDragging}

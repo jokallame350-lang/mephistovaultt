@@ -166,7 +166,13 @@ export const i18n: Record<LangKey, Record<string, string>> = {
     "errRoomTaken": "Room code is already in use. Please generate a new code.",
     "errDecryption": "Decryption failed. Encryption key or data is corrupted.",
     "errConn": "Connection error",
-    "errSenderNotResponding": "Sender is not responding. Ensure sender has room open."
+    "errSenderNotResponding": "Sender is not responding. Ensure sender has room open.",
+    "batchQueue": "Batch Transfer Queue",
+    "totalPayload": "Total Payload",
+    "addFiles": "+ Add Files",
+    "clearAll": "Clear All",
+    "zipStreamReady": "Encrypted ZIP Stream Ready",
+    "packagingZip": "Packaging encrypted ZIP stream..."
   },
   "tr": {
     "title": "MephistoVault",

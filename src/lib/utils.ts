@@ -25,15 +25,19 @@ export function formatSpeed(bytesPerSec: number): string {
 }
 
 export function formatETA(seconds: number): string {
-  if (seconds === Infinity || isNaN(seconds) || seconds < 0) return '--:--';
+  if (!isFinite(seconds) || isNaN(seconds) || seconds < 0) return '--:--';
   const totalSecs = Math.round(seconds);
+  if (totalSecs <= 0) return '0s remaining';
   const h = Math.floor(totalSecs / 3600);
   const m = Math.floor((totalSecs % 3600) / 60);
   const s = totalSecs % 60;
   if (h > 0) {
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    return `${h}h ${m}m remaining`;
   }
-  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}s`;
+  if (m > 0) {
+    return `${m}m ${s.toString().padStart(2, '0')}s remaining`;
+  }
+  return `${s}s remaining`;
 }
 
 export function formatTime(s: number): string {
@@ -173,47 +177,7 @@ export function parseRoomCode(rawInput: string): string {
 }
 
 // ── Audio Notification ──
-
-export function playTransferSound(): void {
-  try {
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.value = 880;
-    osc.type = 'sine';
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.5);
-
-    setTimeout(() => {
-      try {
-        const o2 = ctx.createOscillator();
-        const g2 = ctx.createGain();
-        o2.connect(g2);
-        g2.connect(ctx.destination);
-        o2.frequency.value = 1320;
-        o2.type = 'sine';
-        g2.gain.setValueAtTime(0.3, ctx.currentTime);
-        g2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
-        o2.start(ctx.currentTime);
-        o2.stop(ctx.currentTime + 0.6);
-      } catch {
-        // ignore secondary tone error
-      }
-    }, 200);
-
-    setTimeout(() => {
-      ctx.close().catch(() => {});
-    }, 900);
-  } catch {
-    // AudioContext not available (e.g. server-side or restricted environment)
-  }
-}
+export { playTransferSound, playTransferCompleteChime, playPeerConnectedChime } from './audioFX';
 
 // ── Clipboard Copy (cross-browser) ──
 

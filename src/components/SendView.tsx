@@ -19,15 +19,31 @@ import {
   Send,
   Mail,
   Maximize2,
+  FileImage,
+  FileVideo,
+  FileAudio,
+  FileArchive,
+  FileCode,
+  FileText,
+  Plus,
+  Trash2,
+  Layers,
+  Package,
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { formatBytes } from '../lib/utils';
 import { EXPIRATION_OPTIONS } from '../lib/constants';
 import TransferProgress from './TransferProgress';
+import type { FileWithCustomPath } from '../types';
 
 interface SendViewProps {
   fileToShare: File | null;
   setFileToShare: (f: File | null) => void;
+  selectedFiles?: File[];
+  totalPayloadSize?: number;
+  onRemoveFile?: (index: number) => void;
+  onClearFiles?: () => void;
+  onAddFiles?: (files: File[]) => void;
   isZipping: boolean;
   zipProgress: number;
   isDragging: boolean;
@@ -57,9 +73,74 @@ interface SendViewProps {
   t: (key: string, params?: Record<string, string | number>) => string;
 }
 
+/**
+ * Returns type icon, color theme, and category label for a given file
+ */
+function getFileTypeDetails(file: File) {
+  const name = file.name.toLowerCase();
+  const type = file.type.toLowerCase();
+
+  if (type.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico|heic|avif)$/.test(name)) {
+    return {
+      Icon: FileImage,
+      colorClass: 'text-pink-400 bg-pink-500/10 border-pink-500/30',
+      category: 'IMAGE',
+    };
+  }
+  if (type.startsWith('video/') || /\.(mp4|mkv|webm|avi|mov|wmv|flv|m4v)$/.test(name)) {
+    return {
+      Icon: FileVideo,
+      colorClass: 'text-purple-400 bg-purple-500/10 border-purple-500/30',
+      category: 'VIDEO',
+    };
+  }
+  if (type.startsWith('audio/') || /\.(mp3|wav|ogg|flac|aac|m4a|wma)$/.test(name)) {
+    return {
+      Icon: FileAudio,
+      colorClass: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
+      category: 'AUDIO',
+    };
+  }
+  if (
+    /\.(zip|tar|gz|rar|7z|bz2|xz|iso)$/.test(name) ||
+    type.includes('zip') ||
+    type.includes('compressed') ||
+    type.includes('archive')
+  ) {
+    return {
+      Icon: FileArchive,
+      colorClass: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
+      category: 'ARCHIVE',
+    };
+  }
+  if (/\.(ts|tsx|js|jsx|json|html|css|py|rs|go|cpp|c|java|php|rb|sql|sh|yaml|yml)$/.test(name)) {
+    return {
+      Icon: FileCode,
+      colorClass: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/30',
+      category: 'CODE',
+    };
+  }
+  if (/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|md|rtf|csv)$/.test(name) || type.startsWith('text/')) {
+    return {
+      Icon: FileText,
+      colorClass: 'text-blue-400 bg-blue-500/10 border-blue-500/30',
+      category: 'DOC',
+    };
+  }
+  return {
+    Icon: FileIcon,
+    colorClass: 'text-slate-400 bg-white/5 border-white/10',
+    category: 'FILE',
+  };
+}
+
 export const SendView = React.memo(function SendView({
   fileToShare,
   setFileToShare,
+  selectedFiles = [],
+  totalPayloadSize,
+  onRemoveFile,
+  onClearFiles,
   isZipping,
   zipProgress,
   isDragging,
@@ -91,6 +172,12 @@ export const SendView = React.memo(function SendView({
   const [showQuickTextModal, setShowQuickTextModal] = useState(false);
   const [quickTextContent, setQuickTextContent] = useState('');
   const [isQRLightboxOpen, setIsQRLightboxOpen] = useState(false);
+
+  const effectiveFiles = selectedFiles.length > 0 ? selectedFiles : fileToShare ? [fileToShare] : [];
+  const calculatedTotalSize =
+    totalPayloadSize !== undefined
+      ? totalPayloadSize
+      : effectiveFiles.reduce((acc, f) => acc + (f.size || 0), 0);
 
   const handleQuickTextSubmit = useCallback(
     (e: React.FormEvent) => {
@@ -144,7 +231,7 @@ export const SendView = React.memo(function SendView({
       alert(`${t('cameraError')}: ${message}`);
     } finally {
       if (stream) {
-        stream.getTracks().forEach((t) => t.stop());
+        stream.getTracks().forEach((trk) => trk.stop());
       }
     }
   }, [setFileToShare, t]);
@@ -180,10 +267,20 @@ export const SendView = React.memo(function SendView({
       alert(`${t('screenCapError')}: ${message}`);
     } finally {
       if (stream) {
-        stream.getTracks().forEach((t) => t.stop());
+        stream.getTracks().forEach((trk) => trk.stop());
       }
     }
   }, [setFileToShare, t]);
+
+  const handleClearAll = useCallback(() => {
+    if (onClearFiles) {
+      onClearFiles();
+    } else {
+      setFileToShare(null);
+    }
+  }, [onClearFiles, setFileToShare]);
+
+  const isTransferActive = isConnected || transferProgress > 0;
 
   return (
     <motion.div
@@ -193,6 +290,23 @@ export const SendView = React.memo(function SendView({
       exit={{ opacity: 0, y: 10 }}
       className="glass-panel overflow-hidden"
     >
+      {/* Hidden File and Folder Inputs (Always mounted for quick actions & batch additions) */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={onFileChange}
+      />
+      <input
+        ref={folderInputRef}
+        type="file"
+        {...({ webkitdirectory: '', directory: '' } as React.InputHTMLAttributes<HTMLInputElement>)}
+        multiple
+        className="hidden"
+        onChange={onFileChange}
+      />
+
       <div className="p-4 border-b border-white/5 flex items-center justify-between">
         <h2 className="text-white font-bold flex items-center gap-2">
           <Upload className="w-4 h-4 text-emerald-500" /> {t('sendTitle')}
@@ -207,12 +321,12 @@ export const SendView = React.memo(function SendView({
       </div>
 
       <div className="p-6 md:p-8">
-        {!fileToShare ? (
+        {effectiveFiles.length === 0 ? (
           isZipping ? (
             <div className="flex flex-col items-center justify-center p-12 text-center bg-black/40 border-2 border-dashed border-emerald-500/50 rounded-2xl">
               <div className="relative w-20 h-20 mb-6">
-                <div className="absolute inset-0 border-4 border-emerald-500/30 rounded-full animate-spin"></div>
-                <div className="absolute inset-0 flex items-center justify-center font-bold text-emerald-500">
+                <div className="absolute inset-0 border-4 border-emerald-500/30 rounded-full animate-spin" />
+                <div className="absolute inset-0 flex items-center justify-center font-bold text-emerald-500 font-mono">
                   {Math.round(zipProgress)}%
                 </div>
               </div>
@@ -221,23 +335,6 @@ export const SendView = React.memo(function SendView({
             </div>
           ) : (
             <div className="flex flex-col gap-4 w-full">
-              {/* Hidden File and Folder Inputs */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                onChange={onFileChange}
-              />
-              <input
-                ref={folderInputRef}
-                type="file"
-                {...({ webkitdirectory: '', directory: '' } as React.InputHTMLAttributes<HTMLInputElement>)}
-                multiple
-                className="hidden"
-                onChange={onFileChange}
-              />
-
               {/* Main Drop Area (Clickable Card) */}
               <div
                 onDragOver={onDragOver}
@@ -287,7 +384,7 @@ export const SendView = React.memo(function SendView({
                 <p className="text-slate-500 text-sm">{t('dropSub')}</p>
               </div>
 
-              {/* Quick Action Selector Toolbar (Separated from Dropzone) */}
+              {/* Quick Action Selector Toolbar */}
               <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
                 <button
                   type="button"
@@ -390,26 +487,200 @@ export const SendView = React.memo(function SendView({
             </div>
           )
         ) : (
-          <div className="flex flex-col items-center">
-            {/* File Info */}
-            <div className="w-full flex items-center gap-4 bg-black/40 border border-white/5 rounded-xl p-4 mb-4">
-              <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
-                <FileIcon className="w-5 h-5 text-emerald-500" />
+          <div className="flex flex-col items-center w-full">
+            {/* Multi-File Batch Transfer Queue / Single File Stage */}
+            {effectiveFiles.length > 1 ? (
+              <div className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 mb-4 space-y-3">
+                {/* Batch Header: Queue Title, Count, Total Payload Size & Action Controls */}
+                <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                      <Layers className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-white font-bold text-sm">Batch Transfer Queue</span>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-mono text-[11px] font-bold">
+                          {effectiveFiles.length} files
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Total Payload Badge & Quick Buttons */}
+                  <div className="flex items-center gap-2">
+                    <div className="px-2.5 py-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-mono text-xs font-bold shadow-sm">
+                      Total: {formatBytes(calculatedTotalSize)}
+                    </div>
+                    {!isTransferActive && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="p-1.5 rounded-lg bg-white/5 hover:bg-emerald-500/20 border border-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                          title="Add more files"
+                          aria-label="Add more files"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => folderInputRef.current?.click()}
+                          className="p-1.5 rounded-lg bg-white/5 hover:bg-cyan-500/20 border border-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                          title="Add folder"
+                          aria-label="Add folder"
+                        >
+                          <Folder className="w-3.5 h-3.5 text-cyan-400" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleClearAll}
+                          className="p-1.5 rounded-lg bg-white/5 hover:bg-red-500/20 border border-white/10 text-slate-400 hover:text-red-400 transition-colors cursor-pointer"
+                          title="Clear batch queue"
+                          aria-label="Clear all files"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Sleek Scrollable Batch File List */}
+                <div className="max-h-56 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                  <AnimatePresence initial={false}>
+                    {effectiveFiles.map((file, index) => {
+                      const typeInfo = getFileTypeDetails(file);
+                      const customPath = (file as FileWithCustomPath).customPath;
+
+                      return (
+                        <motion.div
+                          key={`${file.name}-${file.size}-${index}`}
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          className="group flex items-center justify-between gap-3 bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 hover:border-white/10 p-2.5 rounded-xl transition-all"
+                        >
+                          {/* Left: Type Icon & Name */}
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div
+                              className={`w-8 h-8 rounded-lg flex items-center justify-center border shrink-0 ${typeInfo.colorClass}`}
+                            >
+                              <typeInfo.Icon className="w-4 h-4" />
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <span
+                                className="text-white text-xs font-semibold truncate"
+                                title={customPath || file.name}
+                              >
+                                {file.name}
+                              </span>
+                              <div className="flex items-center gap-2 text-[11px] font-mono text-slate-400">
+                                <span>{formatBytes(file.size)}</span>
+                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-slate-400 uppercase font-semibold">
+                                  {typeInfo.category}
+                                </span>
+                                {customPath && customPath.includes('/') && (
+                                  <span
+                                    className="text-[10px] text-cyan-400/80 truncate max-w-[120px]"
+                                    title={customPath}
+                                  >
+                                    📁 {customPath.split('/').slice(0, -1).join('/')}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right: Remove Button */}
+                          {!isTransferActive && onRemoveFile && (
+                            <button
+                              type="button"
+                              onClick={() => onRemoveFile(index)}
+                              className="text-slate-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition-colors cursor-pointer shrink-0 opacity-80 group-hover:opacity-100"
+                              title="Remove file from batch"
+                              aria-label={`Remove ${file.name}`}
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
+                </div>
+
+                {/* Packaging Status Banner */}
+                <div className="flex items-center justify-between p-2.5 bg-emerald-500/5 border border-emerald-500/20 rounded-xl text-xs font-mono text-emerald-400">
+                  <div className="flex items-center gap-2">
+                    {isZipping ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+                    ) : (
+                      <Package className="w-4 h-4 text-emerald-400" />
+                    )}
+                    <span>
+                      {isZipping
+                        ? `Packaging ZIP stream (${Math.round(zipProgress)}%)...`
+                        : 'Encrypted ZIP Stream Ready'}
+                    </span>
+                  </div>
+                  {fileToShare && !isZipping && (
+                    <span className="text-slate-400 text-[11px]">
+                      ZIP Payload: <strong className="text-emerald-400">{formatBytes(fileToShare.size)}</strong>
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="flex-1 min-w-0 text-left">
-                <p className="text-white font-bold text-sm truncate">{fileToShare.name}</p>
-                <p className="text-slate-400 text-xs">{formatBytes(fileToShare.size)}</p>
+            ) : (
+              /* Single File Display with Batch Option */
+              <div className="w-full bg-black/40 border border-white/5 rounded-xl p-4 mb-4 space-y-3">
+                <div className="flex items-center gap-4">
+                  {(() => {
+                    const singleFile = effectiveFiles[0] || fileToShare;
+                    const typeInfo = singleFile
+                      ? getFileTypeDetails(singleFile)
+                      : { Icon: FileIcon, colorClass: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20', category: 'FILE' };
+                    return (
+                      <div
+                        className={`w-10 h-10 rounded-lg flex items-center justify-center border shrink-0 ${typeInfo.colorClass}`}
+                      >
+                        <typeInfo.Icon className="w-5 h-5" />
+                      </div>
+                    );
+                  })()}
+
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="text-white font-bold text-sm truncate">
+                      {effectiveFiles[0]?.name || fileToShare?.name}
+                    </p>
+                    <p className="text-slate-400 text-xs font-mono">
+                      {formatBytes(calculatedTotalSize)}
+                    </p>
+                  </div>
+
+                  {!isTransferActive && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex items-center gap-1 px-2.5 py-1.5 bg-white/5 hover:bg-emerald-500/20 border border-white/10 rounded-lg text-xs font-bold text-slate-300 hover:text-white transition-all cursor-pointer"
+                        title="Add more files to batch"
+                        aria-label="Add more files to batch"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> <span>+ Add</span>
+                      </button>
+                      <button
+                        onClick={handleClearAll}
+                        className="text-slate-500 hover:text-white p-2 rounded-lg transition-colors cursor-pointer"
+                        aria-label="Deselect file"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-              {transferProgress <= 0 && !isConnected && (
-                <button
-                  onClick={() => setFileToShare(null)}
-                  className="text-slate-500 hover:text-white p-2 rounded-lg transition-colors cursor-pointer"
-                  aria-label="Deselect file"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
+            )}
 
             {/* Expiration Timer Selector */}
             <div className="w-full mb-6 bg-white/[0.02] border border-white/5 p-3 rounded-2xl flex items-center justify-between">
@@ -649,7 +920,7 @@ export const SendView = React.memo(function SendView({
               </div>
             )}
 
-            {previewUrl && (
+            {previewUrl && effectiveFiles.length <= 1 && (
               <div className="w-full mb-4 rounded-xl overflow-hidden border border-white/10 max-h-40">
                 <img
                   src={previewUrl}

@@ -14,6 +14,7 @@ import {
 } from '../lib/constants';
 import { deriveKey, encryptChunk, decryptChunk, clearKeyCache } from '../lib/encryption';
 import { formatETA, formatSpeed, parseRoomCode } from '../lib/utils';
+import { playPeerConnectedChime } from '../lib/audioFX';
 import type { FileMeta, CompletedFile, PeerMessage, PeerDataConnectionExt, PeerCustomError } from '../types';
 
 interface UsePeerConnectionProps {
@@ -60,27 +61,40 @@ export function usePeerConnection({
   const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cryptoKeyRef = useRef<CryptoKey | null>(null);
   const transferCompletedRef = useRef(false);
+  const smoothedSpeedRef = useRef(0);
 
   const calculateSpeedAndETA = useCallback((bytesCurrent: number, bytesTotal: number) => {
     const now = Date.now();
     const elapsed = now - lastSpeedCalcRef.current.time;
 
-    if (elapsed >= 500 || bytesCurrent >= bytesTotal) {
+    if (elapsed >= 300 || bytesCurrent >= bytesTotal) {
       const bytesDiff = bytesCurrent - lastSpeedCalcRef.current.bytes;
       if (elapsed > 0 && lastSpeedCalcRef.current.time !== 0) {
-        const bps = (Math.max(0, bytesDiff) / elapsed) * 1000;
-        const formattedSpeed = formatSpeed(bps);
+        const instantBps = (Math.max(0, bytesDiff) / elapsed) * 1000;
+        // EMA smoothing: alpha = 0.35 gives responsive yet stable speed reading
+        const smoothedBps =
+          smoothedSpeedRef.current === 0
+            ? instantBps
+            : 0.35 * instantBps + 0.65 * smoothedSpeedRef.current;
+        smoothedSpeedRef.current = smoothedBps;
+
+        const formattedSpeed = formatSpeed(smoothedBps);
         setTransferSpeed((prev) => (prev === formattedSpeed ? prev : formattedSpeed));
-        if (bps > 0 && bytesCurrent < bytesTotal) {
-          const formattedEta = formatETA((bytesTotal - bytesCurrent) / bps);
+
+        if (smoothedBps > 0 && bytesCurrent < bytesTotal) {
+          const remainingSecs = (bytesTotal - bytesCurrent) / smoothedBps;
+          const formattedEta = formatETA(remainingSecs);
           setTransferETA((prev) => (prev === formattedEta ? prev : formattedEta));
+        } else if (bytesCurrent >= bytesTotal) {
+          setTransferETA('0s remaining');
         } else {
-          setTransferETA((prev) => (prev === '--:--' ? prev : '--:--'));
+          setTransferETA('--:--');
         }
       }
       if (bytesCurrent >= bytesTotal) {
         setTransferSpeed(null);
         setTransferETA(null);
+        smoothedSpeedRef.current = 0;
       }
       lastSpeedCalcRef.current = { time: now, bytes: bytesCurrent };
     }
@@ -145,6 +159,7 @@ export function usePeerConnection({
     setPeerCount(0);
     setTransferSpeed(null);
     setTransferETA(null);
+    smoothedSpeedRef.current = 0;
     lastSpeedCalcRef.current = { time: 0, bytes: 0 };
   }, [clearChatMessages]);
 
@@ -203,12 +218,16 @@ export function usePeerConnection({
         const newProg = end === file.size ? 100 : Math.min(99, progress);
         setTransferProgress((prev) => (prev === newProg ? prev : newProg));
         calculateSpeedAndETA(end, file.size);
+        if (end === file.size && !transferCompletedRef.current) {
+          transferCompletedRef.current = true;
+          onTransferComplete();
+        }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
         setErrorStatus((t ? t('errSendChunk') : ERRORS.SEND_CHUNK_ERR) + message);
       }
     },
-    [shareCode, fileToShareRef, calculateSpeedAndETA, t],
+    [shareCode, fileToShareRef, calculateSpeedAndETA, onTransferComplete, t],
   );
 
   const initSender = useCallback(() => {
@@ -230,6 +249,7 @@ export function usePeerConnection({
 
       conn.on('open', () => {
         setIsConnected(true);
+        playPeerConnectedChime();
       });
 
       conn.on('data', (data: unknown) => {
@@ -341,6 +361,7 @@ export function usePeerConnection({
             connected = true;
             setIsConnected(true);
             setErrorStatus(null);
+            playPeerConnectedChime();
 
             if (connectTimeoutRef.current) {
               clearTimeout(connectTimeoutRef.current);
