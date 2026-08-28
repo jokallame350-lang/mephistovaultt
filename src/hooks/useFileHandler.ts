@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import JSZip from 'jszip';
+import { playFileDropChime } from '../lib/audioFX';
 import type { CompletedFile, ZipEntry, FileWithCustomPath, WebKitEntry, WebKitFileEntry, WebKitDirectoryEntry } from '../types';
 
 export async function scanEntry(entry: WebKitEntry, path = ''): Promise<File[]> {
@@ -306,6 +307,7 @@ export function useFileHandler(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files.length > 0) {
         const files = Array.from(e.target.files);
+        playFileDropChime();
         processFiles(files, selectedFiles.length > 0);
         onFilesProcessed?.();
         e.target.value = '';
@@ -327,9 +329,13 @@ export function useFileHandler(
   const handleDrop = useCallback(
     async (e: React.DragEvent) => {
       e.preventDefault();
+      e.stopPropagation();
       setIsDragging(false);
+      dragCounterRef.current = 0;
+      setIsGlobalDragging(false);
       const files = await extractFilesFromDataTransfer(e.dataTransfer);
       if (files.length > 0) {
+        playFileDropChime();
         await processFiles(files, selectedFiles.length > 0);
         onFilesProcessed?.();
       }
@@ -339,8 +345,8 @@ export function useFileHandler(
 
   const handleGlobalDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    dragCounterRef.current--;
-    if (dragCounterRef.current <= 0) {
+    e.stopPropagation();
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
       dragCounterRef.current = 0;
       setIsGlobalDragging(false);
     }
@@ -349,10 +355,12 @@ export function useFileHandler(
   const handleGlobalDrop = useCallback(
     async (e: React.DragEvent) => {
       e.preventDefault();
+      e.stopPropagation();
       dragCounterRef.current = 0;
       setIsGlobalDragging(false);
       const files = await extractFilesFromDataTransfer(e.dataTransfer);
       if (files.length > 0) {
+        playFileDropChime();
         await processFiles(files, selectedFiles.length > 0);
         onFilesProcessed?.();
       }
@@ -388,13 +396,20 @@ export function useFileHandler(
       if (!isDragWithFiles(e)) return;
       e.preventDefault();
       dragCounterRef.current--;
-      if (dragCounterRef.current <= 0) {
+      if (
+        dragCounterRef.current <= 0 ||
+        e.clientX <= 0 ||
+        e.clientY <= 0 ||
+        e.clientX >= window.innerWidth ||
+        e.clientY >= window.innerHeight
+      ) {
         dragCounterRef.current = 0;
         setIsGlobalDragging(false);
       }
     };
 
     const handleWindowDrop = async (e: DragEvent) => {
+      if (e.defaultPrevented) return;
       if (!isDragWithFiles(e)) return;
       e.preventDefault();
       dragCounterRef.current = 0;
@@ -403,6 +418,7 @@ export function useFileHandler(
       if (e.dataTransfer) {
         const files = await extractFilesFromDataTransfer(e.dataTransfer);
         if (files.length > 0) {
+          playFileDropChime();
           await processFiles(files, selectedFiles.length > 0);
           onFilesProcessed?.();
         }

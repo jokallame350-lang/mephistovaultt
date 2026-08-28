@@ -1,13 +1,13 @@
-﻿<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <urlset
   xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
   xmlns:xhtml="http://www.w3.org/1999/xhtml"
   xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
   
-  <!-- Main Root URL with Hreflang Tags -->
+  <!-- Main Root URL with Complete Hreflang Tags -->
   <url>
     <loc>https://www.mephistoshares.online/</loc>
-    <lastmod>2026-08-26</lastmod>
+    <lastmod>2026-08-28</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.mephistoshares.online/" />
@@ -20,52 +20,101 @@
     <xhtml:link rel="alternate" hreflang="pt" href="https://www.mephistoshares.online/?lang=pt" />
     <xhtml:link rel="alternate" hreflang="ru" href="https://www.mephistoshares.online/?lang=ru" />
     <xhtml:link rel="alternate" hreflang="ar" href="https://www.mephistoshares.online/?lang=ar" />
+    <xhtml:link rel="alternate" hreflang="zh" href="https://www.mephistoshares.online/?lang=zh" />
     <image:image>
       <image:loc>https://www.mephistoshares.online/og-image.png</image:loc>
-      <image:title>MephistoVault — Zero-Trace Encrypted P2P File Transfer</image:title>
-      <image:caption>Military-grade E2E encrypted peer-to-peer file sharing platform visual banner</image:caption>
+      <image:title>MephistoVault — Direct Browser-to-Browser P2P File Transfer</image:title>
+      <image:caption>Direct browser-to-browser P2P file transfer powered by WebRTC and AES-256-GCM end-to-end encryption. Holographic full-screen drag and drop file sharing with automatic multi-file ZIP bundling, zero cloud storage, unlimited file sizes, and instant 1-click room sharing over WhatsApp, Telegram, and QR Code handoff.</image:caption>
     </image:image>
-  </url>
-
-  <!-- Turkish Landing URL -->
-  <url>
-    <loc>https://www.mephistoshares.online/?lang=tr</loc>
-    <lastmod>2026-08-26</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
-    <xhtml:link rel="alternate" hreflang="tr" href="https://www.mephistoshares.online/?lang=tr" />
   </url>
 
   <!-- English Landing URL -->
   <url>
     <loc>https://www.mephistoshares.online/?lang=en</loc>
-    <lastmod>2026-08-26</lastmod>
+    <lastmod>2026-08-28</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
     <xhtml:link rel="alternate" hreflang="en" href="https://www.mephistoshares.online/?lang=en" />
   </url>
 
+  <!-- Turkish Landing URL -->
+  <url>
+    <loc>https://www.mephistoshares.online/?lang=tr</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="tr" href="https://www.mephistoshares.online/?lang=tr" />
+  </url>
+
   <!-- Spanish Landing URL -->
   <url>
     <loc>https://www.mephistoshares.online/?lang=es</loc>
-    <lastmod>2026-08-26</lastmod>
+    <lastmod>2026-08-28</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.mephistoshares.online/?lang=es" />
   </url>
 
   <!-- German Landing URL -->
   <url>
     <loc>https://www.mephistoshares.online/?lang=de</loc>
-    <lastmod>2026-08-26</lastmod>
+    <lastmod>2026-08-28</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="de" href="https://www.mephistoshares.online/?lang=de" />
   </url>
 
   <!-- French Landing URL -->
   <url>
     <loc>https://www.mephistoshares.online/?lang=fr</loc>
-    <lastmod>2026-08-26</lastmod>
+    <lastmod>2026-08-28</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://www.mephistoshares.online/?lang=fr" />
+  </url>
+
+  <!-- Italian Landing URL -->
+  <url>
+    <loc>https://www.mephistoshares.online/?lang=it</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="it" href="https://www.mephistoshares.online/?lang=it" />
+  </url>
+
+  <!-- Portuguese Landing URL -->
+  <url>
+    <loc>https://www.mephistoshares.online/?lang=pt</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="pt" href="https://www.mephistoshares.online/?lang=pt" />
+  </url>
+
+  <!-- Russian Landing URL -->
+  <url>
+    <loc>https://www.mephistoshares.online/?lang=ru</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://www.mephistoshares.online/?lang=ru" />
+  </url>
+
+  <!-- Arabic Landing URL -->
+  <url>
+    <loc>https://www.mephistoshares.online/?lang=ar</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.mephistoshares.online/?lang=ar" />
+  </url>
+
+  <!-- Chinese Landing URL -->
+  <url>
+    <loc>https://www.mephistoshares.online/?lang=zh</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="zh" href="https://www.mephistoshares.online/?lang=zh" />
   </url>
 </urlset>

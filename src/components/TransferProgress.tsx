@@ -30,13 +30,12 @@ export const TransferProgress = React.memo(function TransferProgress({
   const roundedProgress = Math.max(0, Math.min(100, Math.round(progress)));
   const isTransferring = roundedProgress > 0 && roundedProgress < 100;
 
-  // Format ETA dynamically: ensure 'ETA: ...' or fallback
+  // Format ETA dynamically: clean countdown text without redundant prefixes
   const displayEta = React.useMemo(() => {
-    if (!eta) return 'ETA: Calculating...';
-    if (eta.startsWith('ETA:')) return eta;
-    if (eta === '--:--') return 'ETA: --:--';
-    return `ETA: ${eta}`;
-  }, [eta]);
+    if (!eta) return isTransferring ? 'Calculating...' : '--:--';
+    if (eta === '--:--') return '--:--';
+    return eta.replace(/^ETA:\s*/i, '');
+  }, [eta, isTransferring]);
 
   const displaySpeed = speed || '0 B/s';
 

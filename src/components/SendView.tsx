@@ -797,13 +797,92 @@ export const SendView = React.memo(function SendView({
                   </div>
                 </div>
 
+                {/* 1-Click Social Share Cards Deck */}
+                <div className="flex flex-wrap items-center justify-center gap-2 max-w-sm w-full mx-auto mt-4 pt-1">
+                  {typeof navigator !== 'undefined' && 'share' in navigator && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const shareUrl = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`;
+                        try {
+                          await navigator.share({
+                            title: 'MephistoVault',
+                            text: `${t('shareTextPrefix')}\n`,
+                            url: shareUrl,
+                          });
+                        } catch (err: unknown) {
+                          if ((err as Error).name !== 'AbortError') {
+                            console.error('Share error:', err);
+                          }
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-2 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 rounded-xl text-xs font-bold text-emerald-300 transition-all cursor-pointer shadow-sm hover:scale-105"
+                      title={t('directShare')}
+                      aria-label={t('directShare')}
+                    >
+                      <Share2 className="w-3.5 h-3.5" /> {t('directShare')}
+                    </button>
+                  )}
+
+                  <a
+                    href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
+                      `${t('shareTextPrefix')}\n${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-3 py-2 bg-green-600/15 hover:bg-green-600/25 border border-green-500/30 rounded-xl text-xs font-bold text-green-400 transition-all cursor-pointer shadow-sm hover:scale-105"
+                    title="WhatsApp"
+                    aria-label="Share on WhatsApp"
+                  >
+                    <Send className="w-3.5 h-3.5 text-green-400" /> WhatsApp
+                  </a>
+
+                  <a
+                    href={`https://t.me/share/url?url=${encodeURIComponent(
+                      `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`
+                    )}&text=${encodeURIComponent(t('shareTextPrefix'))}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-3 py-2 bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 rounded-xl text-xs font-bold text-sky-300 transition-all cursor-pointer shadow-sm hover:scale-105"
+                    title="Telegram"
+                    aria-label="Share on Telegram"
+                  >
+                    <Send className="w-3.5 h-3.5 text-sky-300" /> Telegram
+                  </a>
+
+                  <a
+                    href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(
+                      `${t('shareTextPrefix')} ${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-xs font-bold text-white transition-all cursor-pointer shadow-sm hover:scale-105"
+                    title="X (Twitter)"
+                    aria-label="Share on X (Twitter)"
+                  >
+                    <span className="font-mono font-bold text-xs">𝕏</span> X / Twitter
+                  </a>
+
+                  <a
+                    href={`mailto:?subject=${encodeURIComponent('MephistoVault Secure Vault Link')}&body=${encodeURIComponent(
+                      `${t('shareTextPrefix')}\n\n${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`
+                    )}`}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 rounded-xl text-xs font-bold text-purple-300 transition-all cursor-pointer shadow-sm hover:scale-105"
+                    title={t('emailShare')}
+                    aria-label={t('emailShare')}
+                  >
+                    <Mail className="w-3.5 h-3.5 text-purple-300" /> {t('emailShare')}
+                  </a>
+                </div>
+
+                {/* Collapsible Cyberpunk QR Code Lightbox */}
                 <AnimatePresence>
                   {showQR && (
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
-                      className="mt-4 flex flex-col items-center gap-3"
+                      className="mt-5 flex flex-col items-center gap-3"
                     >
                       {/* Cyberpunk Dark Theme QR Card with Click-to-Zoom Lightbox */}
                       <div
@@ -848,71 +927,6 @@ export const SendView = React.memo(function SendView({
                       <div className="flex items-center gap-2 text-[11px] font-mono text-emerald-400/90">
                         <Maximize2 className="w-3.5 h-3.5" />
                         <span>{t('zoomHint')}</span>
-                      </div>
-
-                      {/* Direct Share Buttons */}
-                      <div className="flex flex-wrap items-center justify-center gap-2 max-w-xs w-full pt-1">
-                        {typeof navigator !== 'undefined' && 'share' in navigator && (
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              const shareUrl = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`;
-                              try {
-                                await navigator.share({
-                                  title: 'MephistoVault',
-                                  text: `${t('shareTextPrefix')}\n`,
-                                  url: shareUrl,
-                                });
-                              } catch (err: unknown) {
-                                if ((err as Error).name !== 'AbortError') {
-                                  console.error('Share error:', err);
-                                }
-                              }
-                            }}
-                            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 rounded-xl text-xs font-bold text-emerald-300 transition-colors cursor-pointer"
-                            title={t('directShare')}
-                            aria-label={t('directShare')}
-                          >
-                            <Share2 className="w-3.5 h-3.5" /> {t('directShare')}
-                          </button>
-                        )}
-
-                        <a
-                          href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                            `${t('shareTextPrefix')}\n${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`
-                          )}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 px-3 py-2 bg-green-600/20 hover:bg-green-600/30 border border-green-500/40 rounded-xl text-xs font-bold text-green-400 transition-colors cursor-pointer"
-                          title="WhatsApp"
-                          aria-label="WhatsApp"
-                        >
-                          <Send className="w-3.5 h-3.5 text-green-400" /> WhatsApp
-                        </a>
-
-                        <a
-                          href={`https://t.me/share/url?url=${encodeURIComponent(
-                            `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`
-                          )}&text=${encodeURIComponent(t('shareTextPrefix'))}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 px-3 py-2 bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 rounded-xl text-xs font-bold text-sky-300 transition-colors cursor-pointer"
-                          title="Telegram"
-                          aria-label="Telegram"
-                        >
-                          <Send className="w-3.5 h-3.5 text-sky-300" /> Telegram
-                        </a>
-
-                        <a
-                          href={`mailto:?subject=${encodeURIComponent('MephistoVault Secure Vault Link')}&body=${encodeURIComponent(
-                            `${t('shareTextPrefix')}\n\n${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`
-                          )}`}
-                          className="flex items-center gap-1.5 px-3 py-2 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 rounded-xl text-xs font-bold text-purple-300 transition-colors cursor-pointer"
-                          title={t('emailShare')}
-                          aria-label={t('emailShare')}
-                        >
-                          <Mail className="w-3.5 h-3.5 text-purple-300" /> {t('emailShare')}
-                        </a>
                       </div>
                     </motion.div>
                   )}

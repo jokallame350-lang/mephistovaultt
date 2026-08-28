@@ -177,7 +177,14 @@ export function parseRoomCode(rawInput: string): string {
 }
 
 // ── Audio Notification ──
-export { playTransferSound, playTransferCompleteChime, playPeerConnectedChime } from './audioFX';
+export {
+  playTransferSound,
+  playTransferCompleteChime,
+  playPeerConnectedChime,
+  playFileDropChime,
+  playToggleSound,
+  playErrorSound,
+} from './audioFX';
 
 // ── Clipboard Copy (cross-browser) ──
 

@@ -30,6 +30,17 @@ function getAudioContext(): AudioContext | null {
   }
 }
 
+// Auto-resume AudioContext on first user interaction to comply with browser autoplay policies
+if (typeof window !== 'undefined') {
+  const unlockAudio = () => {
+    if (sharedAudioCtx && sharedAudioCtx.state === 'suspended') {
+      sharedAudioCtx.resume().catch(() => {});
+    }
+  };
+  window.addEventListener('pointerdown', unlockAudio, { once: true });
+  window.addEventListener('keydown', unlockAudio, { once: true });
+}
+
 /**
  * Check if sound effects are enabled in localStorage.
  * Defaults to true if not set.
@@ -119,6 +130,105 @@ export function playPeerConnectedChime(): void {
 }
 
 /**
+ * Synthesize File Drop / Selection Chime:
+ * Futuristic cybernetic sound sweep (320Hz -> 640Hz with smooth resonance decay).
+ */
+export function playFileDropChime(): void {
+  if (!isSoundEnabled()) return;
+
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(320, now);
+    osc.frequency.exponentialRampToValueAtTime(640, now + 0.12);
+
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(0.15, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.24);
+  } catch {
+    // AudioContext failure gracefully ignored
+  }
+}
+
+/**
+ * Synthesize Button / Toggle Micro-Click Sound:
+ * Ultra-crisp high frequency acoustic micro-pop.
+ */
+export function playToggleSound(): void {
+  if (!isSoundEnabled()) return;
+
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(1200, now);
+    osc.frequency.exponentialRampToValueAtTime(1800, now + 0.04);
+
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(0.1, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.07);
+  } catch {
+    // AudioContext failure gracefully ignored
+  }
+}
+
+/**
+ * Synthesize Error / Warning Buzzer:
+ * Low-frequency warning tone with subtle dissonant undertone.
+ */
+export function playErrorSound(): void {
+  if (!isSoundEnabled()) return;
+
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.linearRampToValueAtTime(160, now + 0.18);
+
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(0.12, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.24);
+  } catch {
+    // AudioContext failure gracefully ignored
+  }
+}
+
+/**
  * Synthesize Transfer Complete Chime:
  * Pleasant celebratory chord (C5 -> E5 -> G5 -> C6 arpeggiated major chord with warm decay).
  */
@@ -131,7 +241,7 @@ export function playTransferCompleteChime(): void {
 
     const now = ctx.currentTime;
 
-    // Celebratory Major 9th chord frequencies: C5, E5, G5, C6
+    // Celebratory Major 9th chord frequencies: C5, E5, G5, C6, E6
     const chordNotes = [
       { freq: 523.25, timeOffset: 0.0, gain: 0.18, dur: 0.65 },  // C5
       { freq: 659.25, timeOffset: 0.05, gain: 0.18, dur: 0.65 }, // E5
