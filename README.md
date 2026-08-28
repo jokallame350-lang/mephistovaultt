@@ -45,11 +45,17 @@ Whether you need a **wormhole alternative** for instant transfers, a **snapdrop 
 
 ---
 
-## 📸 Interface & Cyberpunk HUD Preview
+## 📸 Screenshots & Visual Interface Tour
 
-<p align="center">
-  <img src="public/og-image.png" alt="MephistoVault Cyberpunk Dashboard Interface" width="100%" style="border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,0.75);">
-</p>
+| 🛸 01. Hero Command Dashboard & Quick Actions | 📦 02. Secure Send Mode, QR Code & Share Deck |
+| :---: | :---: |
+| <img src="docs/screenshots/01-hero-dashboard.png" alt="MephistoVault Hero Dashboard" width="100%"> | <img src="docs/screenshots/02-secure-send-mode.png" alt="MephistoVault Secure Send Mode" width="100%"> |
+| *Intuitive dark UI with Send/Receive hubs and LAN discovery* | *CSPRNG Room PIN, QR Code & 1-Click WhatsApp/Telegram share deck* |
+
+| 🛡️ 03. In-Browser Sandbox Safety Analysis | ⚡ 04. Cyberpunk Neon High-Contrast HUD Theme |
+| :---: | :---: |
+| <img src="docs/screenshots/03-sandbox-security-inspector.png" alt="MephistoVault Sandbox Inspector" width="100%"> | <img src="docs/screenshots/04-cyberpunk-theme.png" alt="MephistoVault Cyberpunk Mode" width="100%"> |
+| *Real-time heuristic risk detection & Memory Vault volatile saving* | *High-saturation neon accents with customized HUD scrollbars* |
 
 ---
 
