@@ -54,7 +54,7 @@ export const TransferProgress = React.memo(function TransferProgress({
           </span>
         </div>
         <div className={`px-2.5 py-0.5 rounded-lg border font-black font-mono tracking-wider ${badgeClass}`}>
-          <AnimatedCounter value={roundedProgress} />%
+          <AnimatedCounter value={roundedProgress} />
         </div>
       </div>
 

@@ -25,7 +25,7 @@ interface SEOFooterProps {
 }
 
 // 4 High-Converting Keyword Pillars across all 10 supported languages
-export const HIGH_CONVERTING_KEYWORD_PILLARS: Record<
+const HIGH_CONVERTING_KEYWORD_PILLARS: Record<
   LangKey,
   Array<{
     title: string;
@@ -260,7 +260,7 @@ interface FAQItem {
   a: Record<LangKey, string>;
 }
 
-export const EXPANDED_FAQ_ITEMS: FAQItem[] = [
+const EXPANDED_FAQ_ITEMS: FAQItem[] = [
   {
     q: {
       en: 'How does zero cloud storage and zero-trace privacy protect my confidential data?',

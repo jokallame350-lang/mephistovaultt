@@ -45,14 +45,6 @@ export function useChat(broadcastFn: (msg: PeerMessage) => void) {
 
   const addPeerMessage = useCallback((text: string) => {
     setChatMessages((prev) => [...prev, { id: Date.now(), text, sender: 'peer' }]);
-    if (text.startsWith('📋 ')) {
-      const clipContent = text.slice(3);
-      try {
-        navigator.clipboard.writeText(clipContent).catch(() => {});
-      } catch {
-        // ignore
-      }
-    }
   }, []);
 
   const clearMessages = useCallback(() => {

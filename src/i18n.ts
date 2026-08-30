@@ -326,7 +326,13 @@ export const i18n: Record<LangKey, Record<string, string>> = {
     "errRoomTaken": "Oda kodu zaten kullanımda. Lütfen yeni bir kod oluşturun.",
     "errDecryption": "Şifre çözme hatası. Şifreleme anahtarı veya veri bozuk.",
     "errConn": "Bağlantı hatası",
-    "errSenderNotResponding": "Gönderici yanıt vermiyor. Lütfen göndericinin oda ekranının açık olduğunu doğrulayın."
+    "errSenderNotResponding": "Gönderici yanıt vermiyor. Lütfen göndericinin oda ekranının açık olduğunu doğrulayın.",
+    "batchQueue": "Toplu Transfer Kuyruğu",
+    "totalPayload": "Toplam Boyut",
+    "addFiles": "+ Dosya Ekle",
+    "clearAll": "Tümünü Temizle",
+    "zipStreamReady": "Şifreli ZIP Akışı Hazır",
+    "packagingZip": "Şifreli ZIP akışı paketleniyor..."
   },
   "es": {
     "title": "MephistoVault",

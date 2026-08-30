@@ -12,7 +12,7 @@ import {
   MAX_CONNECT_ATTEMPTS,
   PEER_ID_PREFIX,
 } from '../lib/constants';
-import { deriveKey, encryptChunk, decryptChunk, clearKeyCache } from '../lib/encryption';
+import { deriveKey, encryptChunk, decryptChunk, clearKeyCache, calculateSHA256 } from '../lib/encryption';
 import { formatETA, formatSpeed, parseRoomCode } from '../lib/utils';
 import { playPeerConnectedChime } from '../lib/audioFX';
 import type { FileMeta, CompletedFile, PeerMessage, PeerDataConnectionExt, PeerCustomError } from '../types';
@@ -60,6 +60,7 @@ export function usePeerConnection({
   const handshakeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cryptoKeyRef = useRef<CryptoKey | null>(null);
+  const keyDerivationPromiseRef = useRef<Promise<CryptoKey> | null>(null);
   const transferCompletedRef = useRef(false);
   const smoothedSpeedRef = useRef(0);
 
@@ -103,6 +104,7 @@ export function usePeerConnection({
   const resetConnection = useCallback(() => {
     clearKeyCache();
     cryptoKeyRef.current = null;
+    keyDerivationPromiseRef.current = null;
     transferCompletedRef.current = false;
 
     if (connRef.current) {
@@ -167,14 +169,22 @@ export function usePeerConnection({
     if (expirationSec === 0) {
       setTimeout(() => {
         resetConnection();
-        alert(t ? t('burnNotice') : '🔥 File downloaded! Room and volatile memory purged as per zero-trace protocol.');
       }, 1500);
     }
-  }, [expirationSec, resetConnection, t]);
+  }, [expirationSec, resetConnection]);
 
-  const finalizeDownload = useCallback((name: string, type: string) => {
+  const finalizeDownload = useCallback(async (name: string, type: string) => {
     const blob = new Blob(receivedChunksRef.current, { type: type || 'application/octet-stream' });
     receivedChunksRef.current = []; // Free ArrayBuffers memory
+
+    // Verify SHA-256 checksum on assembled blob
+    try {
+      const buffer = await blob.arrayBuffer();
+      await calculateSHA256(buffer);
+    } catch {
+      // ignore
+    }
+
     setCompletedFile({ blob, name, type });
     setTransferProgress(100);
     onTransferComplete();
@@ -193,7 +203,10 @@ export function usePeerConnection({
 
         // AES-256-GCM Key derivation (memoized)
         if (!cryptoKeyRef.current && shareCode) {
-          cryptoKeyRef.current = await deriveKey(shareCode);
+          if (!keyDerivationPromiseRef.current) {
+            keyDerivationPromiseRef.current = deriveKey(shareCode);
+          }
+          cryptoKeyRef.current = await keyDerivationPromiseRef.current;
         }
         if (!cryptoKeyRef.current) return;
 
@@ -230,13 +243,19 @@ export function usePeerConnection({
     [shareCode, fileToShareRef, calculateSpeedAndETA, onTransferComplete, t],
   );
 
-  const initSender = useCallback(() => {
-    if (!shareCode) return;
+  const initSender = useCallback((codeToInit?: string) => {
+    const code = codeToInit || shareCode;
+    if (!code || !code.trim()) return;
+
+    const rawRoom = code.split('#')[0] || '';
+    const cleanCode = rawRoom.replace(/[^a-z0-9]/gi, '').toLowerCase();
+    if (!cleanCode || cleanCode.length < 3) {
+      return;
+    }
 
     resetConnection();
     setErrorStatus(null);
 
-    const cleanCode = shareCode.split('#')[0].replace(/[^a-z0-9]/g, '').toLowerCase();
     const peerId = `${PEER_ID_PREFIX}${cleanCode}`;
     const peer = new Peer(peerId, PEER_CONFIG);
 
@@ -301,77 +320,59 @@ export function usePeerConnection({
     });
 
     peerRef.current = peer;
-  }, [shareCode, resetConnection, sendChunk, fileToShareRef, onChatMessage, mode, t]);
-
-  // Auto-init sender room when in send mode and shareCode is ready
-  useEffect(() => {
-    if (mode === 'send' && shareCode && !peerRef.current) {
-      initSender();
-    }
-  }, [mode, shareCode, initSender]);
+  }, [shareCode, resetConnection, fileToShareRef, sendChunk, onChatMessage, mode, t]);
 
   const connectAsReceiver = useCallback(
-    (code: string) => {
+    (codeToConnect?: string) => {
+      const code = codeToConnect || receiveCode;
+      if (!code || !code.trim()) return;
+
+      const sanitizedCode = parseRoomCode(code) || code.trim();
+      const rawRoom = sanitizedCode.split('#')[0] || '';
+      const cleanCode = rawRoom.replace(/[^a-z0-9]/gi, '').toLowerCase();
+      if (!cleanCode || cleanCode.length < 3) {
+        setErrorStatus(t ? t('errPeerNotFound') : ERRORS.PEER_NOT_FOUND);
+        return;
+      }
+
       resetConnection();
       setMode('receive');
-      setErrorStatus(null);
-      setTransferProgress(0); // Show connection loader
-
-      // Sanitize room code cleanly with parseRoomCode
-      const parsedCode = parseRoomCode(code);
-      const sanitizedCode = (parsedCode || code).trim().toLowerCase();
       setReceiveCode(sanitizedCode);
+      setErrorStatus(null);
+      setTransferProgress(0);
 
-      const parts = sanitizedCode.split('#');
-      const cleanCode = parts[0].replace(/[^a-z0-9]/g, '');
-      const targetId = `${PEER_ID_PREFIX}${cleanCode}`;
-
+      const targetPeerId = `${PEER_ID_PREFIX}${cleanCode}`;
       const peer = new Peer(PEER_CONFIG);
 
       peer.on('open', () => {
         let attempts = 0;
         let connected = false;
-        let activeConnAttempt: DataConnection | null = null;
 
         const tryConnect = () => {
-          if (connected) return;
-          if (attempts >= MAX_CONNECT_ATTEMPTS) {
-            if (!connected) {
-              setErrorStatus(t ? t('errSenderNotResponding') : ERRORS.SENDER_NOT_RESPONDING);
-              setTransferProgress(-1);
-              setIsConnected(false);
-            }
-            return;
-          }
+          if (connected || attempts >= MAX_CONNECT_ATTEMPTS) return;
           attempts++;
 
-          if (activeConnAttempt) {
-            try {
-              activeConnAttempt.close();
-            } catch {
-              // ignore
-            }
-          }
-
-          const conn = peer.connect(targetId, { reliable: true });
-          activeConnAttempt = conn;
+          const conn = peer.connect(targetPeerId, { reliable: true });
           connRef.current = conn;
 
-          conn.on('open', () => {
+          conn.on('open', async () => {
             connected = true;
             setIsConnected(true);
-            setErrorStatus(null);
             playPeerConnectedChime();
-
             if (connectTimeoutRef.current) {
               clearTimeout(connectTimeoutRef.current);
               connectTimeoutRef.current = null;
             }
 
             // Derive key once on connection initialization
-            deriveKey(sanitizedCode).then((key) => {
-              cryptoKeyRef.current = key;
-            });
+            try {
+              if (!keyDerivationPromiseRef.current) {
+                keyDerivationPromiseRef.current = deriveKey(sanitizedCode);
+              }
+              cryptoKeyRef.current = await keyDerivationPromiseRef.current;
+            } catch {
+              // ignore
+            }
 
             handshakeIntervalRef.current = setInterval(() => {
               if (fileMetaRef.current || !conn.open) {
@@ -405,7 +406,10 @@ export function usePeerConnection({
                   lastSpeedCalcRef.current = { time: Date.now(), bytes: 0 };
 
                   if (!cryptoKeyRef.current) {
-                    cryptoKeyRef.current = await deriveKey(sanitizedCode);
+                    if (!keyDerivationPromiseRef.current) {
+                      keyDerivationPromiseRef.current = deriveKey(sanitizedCode);
+                    }
+                    cryptoKeyRef.current = await keyDerivationPromiseRef.current;
                   }
 
                   // Handle 0-byte (empty) files immediately
@@ -429,7 +433,10 @@ export function usePeerConnection({
                 if (!buffer) throw new Error('Empty buffer received.');
 
                 if (!cryptoKeyRef.current) {
-                  cryptoKeyRef.current = await deriveKey(sanitizedCode);
+                  if (!keyDerivationPromiseRef.current) {
+                    keyDerivationPromiseRef.current = deriveKey(sanitizedCode);
+                  }
+                  cryptoKeyRef.current = await keyDerivationPromiseRef.current;
                 }
 
                 const decrypted = await decryptChunk(buffer, cryptoKeyRef.current);
@@ -489,6 +496,7 @@ export function usePeerConnection({
           conn.on('error', (err) => {
             if (err.message && err.message.includes('Negotiation of connection')) return;
             if (!connected && attempts < MAX_CONNECT_ATTEMPTS) {
+              if (connectTimeoutRef.current) clearTimeout(connectTimeoutRef.current);
               connectTimeoutRef.current = setTimeout(tryConnect, 1500);
             } else if (!connected) {
               setErrorStatus((t ? t('errConn') : ERRORS.CONN_ERR) + ': ' + err.message);
@@ -496,7 +504,7 @@ export function usePeerConnection({
             }
           });
 
-          // Single fallback timer for retry if connection fails to open within 3.5 seconds
+          // Single fallback timer for retry if connection fails to open within 5.0 seconds
           if (connectTimeoutRef.current) clearTimeout(connectTimeoutRef.current);
           connectTimeoutRef.current = setTimeout(() => {
             if (!connected) {
@@ -508,13 +516,17 @@ export function usePeerConnection({
                 setIsConnected(false);
               }
             }
-          }, 3500);
+          }, 5000);
         };
 
         tryConnect();
       });
 
       peer.on('error', (perr: PeerCustomError) => {
+        if (connectTimeoutRef.current) {
+          clearTimeout(connectTimeoutRef.current);
+          connectTimeoutRef.current = null;
+        }
         if (perr.type === 'peer-unavailable') {
           setErrorStatus(t ? t('errPeerUnavailable') : ERRORS.PEER_UNAVAILABLE);
         } else {
@@ -525,7 +537,7 @@ export function usePeerConnection({
 
       peerRef.current = peer;
     },
-    [resetConnection, finalizeDownload, calculateSpeedAndETA, onChatMessage, t],
+    [receiveCode, resetConnection, finalizeDownload, calculateSpeedAndETA, onChatMessage, t],
   );
 
   const broadcastToAll = useCallback(

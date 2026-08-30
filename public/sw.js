@@ -33,8 +33,18 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // Only handle standard HTTP/HTTPS GET requests
+  // Only handle standard HTTP/HTTPS GET requests on same-origin assets
   if (!url.protocol.startsWith('http') || req.method !== 'GET') return;
+
+  // Bypass PeerJS, TURN/STUN, and cross-origin WebRTC signaling entirely
+  if (
+    url.origin !== self.location.origin ||
+    url.hostname.includes('peerjs') ||
+    url.hostname.includes('metered') ||
+    url.pathname.includes('/peerjs')
+  ) {
+    return;
+  }
 
   // 1. Navigation requests (HTML): Network-First with Cache fallback & update
   if (req.mode === 'navigate' || req.headers.get('accept')?.includes('text/html')) {
@@ -71,13 +81,20 @@ self.addEventListener('fetch', (event) => {
         return cachedResponse;
       }
 
-      return fetch(req).then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-          const cacheCopy = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(req, cacheCopy));
-        }
-        return networkResponse;
-      });
+      return fetch(req)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+            const cacheCopy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, cacheCopy));
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          return new Response('Network error occurred while fetching resource.', {
+            status: 504,
+            statusText: 'Gateway Timeout'
+          });
+        });
     })
   );
 });
