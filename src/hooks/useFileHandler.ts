@@ -7,29 +7,39 @@ import type { CompletedFile, ZipEntry, FileWithCustomPath, WebKitEntry, WebKitFi
 export async function scanEntry(entry: WebKitEntry, path = ''): Promise<File[]> {
   if (entry.isFile) {
     return new Promise<File[]>((resolve) => {
-      (entry as WebKitFileEntry).file((file: File) => {
-        (file as FileWithCustomPath).customPath = path + file.name;
-        resolve([file]);
-      });
+      (entry as WebKitFileEntry).file(
+        (file: File) => {
+          (file as FileWithCustomPath).customPath = path + file.name;
+          resolve([file]);
+        },
+        () => resolve([])
+      );
     });
   } else if (entry.isDirectory) {
     const dirReader = (entry as WebKitDirectoryEntry).createReader();
     return new Promise<File[]>((resolve) => {
-      const readAll = async () => {
-        let allFiles: File[] = [];
-        const readEntries = () => new Promise<WebKitEntry[]>((res) => dirReader.readEntries(res));
-
-        let entries = await readEntries();
-        while (entries.length > 0) {
-          for (const cEntry of entries) {
-            const files = await scanEntry(cEntry, path + entry.name + '/');
-            allFiles = allFiles.concat(files);
-          }
-          entries = await readEntries();
-        }
-        resolve(allFiles);
+      const allFiles: File[] = [];
+      const readBatch = () => {
+        dirReader.readEntries(
+          async (entries) => {
+            if (!entries || entries.length === 0) {
+              resolve(allFiles);
+              return;
+            }
+            for (const cEntry of entries) {
+              try {
+                const subFiles = await scanEntry(cEntry, path + entry.name + '/');
+                allFiles.push(...subFiles);
+              } catch {
+                // ignore unreadable subfile
+              }
+            }
+            readBatch();
+          },
+          () => resolve(allFiles)
+        );
       };
-      readAll();
+      readBatch();
     });
   }
   return [];
