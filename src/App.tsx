@@ -187,6 +187,12 @@ export function App() {
     setPeerMode('idle');
   }, [peerResetConnection, setPeerMode]);
 
+  const fileHandlerSetFile = fileHandler.setFileToShare;
+  const handleMediaCaptured = useCallback((file: File) => {
+    fileHandlerSetFile(file);
+    setPeerMode('send');
+  }, [fileHandlerSetFile, setPeerMode]);
+
   // Self destruct timer
   const selfDestructSec = useSelfDestruct(
     peer.transferProgress,
@@ -356,7 +362,12 @@ export function App() {
       <main className="z-10 w-full max-w-lg" id="main-content">
         <AnimatePresence mode="wait">
           {peer.mode === 'idle' && (
-            <IdleView setMode={peer.setMode} sessionTransfers={sessionTransfers} t={t} />
+            <IdleView 
+              setMode={peer.setMode} 
+              sessionTransfers={sessionTransfers} 
+              onMediaCaptured={handleMediaCaptured}
+              t={t} 
+            />
           )}
 
           {peer.mode === 'send' && (

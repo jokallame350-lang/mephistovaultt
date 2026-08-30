@@ -1,18 +1,64 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { Upload, Download, Zap, Flame, EyeOff, Shield, Activity, FileText, Folder, Lock, Eye, Play } from 'lucide-react';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Upload,
+  Download,
+  Zap,
+  Flame,
+  EyeOff,
+  Shield,
+  Activity,
+  FileText,
+  Folder,
+  Lock,
+  Video,
+  Mic,
+  ShieldCheck,
+} from 'lucide-react';
+import MediaRecorderModal from './MediaRecorderModal';
+import FolderTreeModal from './FolderTreeModal';
+import CertificateModal from './CertificateModal';
+import { generateDeliveryCertificate, type DeliveryCertificate } from '../lib/certificate';
 
 interface IdleViewProps {
   setMode: (m: 'idle' | 'send' | 'receive') => void;
   sessionTransfers: number;
-  t: (key: string) => string;
+  onMediaCaptured?: (file: File) => void;
+  t: (key: string, params?: Record<string, string | number>) => string;
 }
 
 export const IdleView = React.memo(function IdleView({
   setMode,
   sessionTransfers,
+  onMediaCaptured,
   t,
 }: IdleViewProps) {
+  const [showRecorder, setShowRecorder] = useState(false);
+  const [showFolderTree, setShowFolderTree] = useState(false);
+  const [showCertModal, setShowCertModal] = useState(false);
+  const [sampleCert, setSampleCert] = useState<DeliveryCertificate | null>(null);
+
+  const handleCapture = (file: File) => {
+    if (onMediaCaptured) {
+      onMediaCaptured(file);
+    }
+    setMode('send');
+  };
+
+  const handleOpenCertificate = () => {
+    const cert = generateDeliveryCertificate({
+      fileName: 'zero-trace-sample-payload.enc',
+      fileSize: 1048576,
+      sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      transferDurationMs: 420,
+      cipher: 'AES-256-GCM / WebRTC DTLS',
+      senderId: 'MEPHISTO-CLIENT-ALPHA',
+      receiverId: 'MEPHISTO-CLIENT-OMEGA',
+    });
+    setSampleCert(cert);
+    setShowCertModal(true);
+  };
+
   return (
     <motion.div
       key="idle"
@@ -79,24 +125,32 @@ export const IdleView = React.memo(function IdleView({
           <span>{t('bundleFolder')}</span>
         </button>
         <button
-          onClick={() => setMode('send')}
-          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-pink-500/10 border border-pink-500/20 text-pink-400 hover:bg-pink-500/20 transition-all text-xs font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-pink-500/50"
-          aria-label={t('stegoVault')}
+          onClick={() => setShowRecorder(true)}
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all text-xs font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500/50"
+          aria-label={t('recordScreen') || 'Screen Video'}
         >
-          <Eye className="w-4 h-4" />
-          <span>{t('stegoVault')}</span>
+          <Video className="w-4 h-4" />
+          <span>{t('recordScreen') || 'Screen Video'}</span>
         </button>
         <button
-          onClick={() => setMode('send')}
-          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all text-xs font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-          aria-label={t('instantStream')}
+          onClick={() => setShowRecorder(true)}
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-pink-500/10 border border-pink-500/20 text-pink-400 hover:bg-pink-500/20 transition-all text-xs font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-pink-500/50"
+          aria-label={t('recordVoice') || 'Voice Memo'}
         >
-          <Play className="w-4 h-4" />
-          <span>{t('instantStream')}</span>
+          <Mic className="w-4 h-4" />
+          <span>{t('recordVoice') || 'Voice Memo'}</span>
+        </button>
+        <button
+          onClick={handleOpenCertificate}
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all text-xs font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+          aria-label={t('certModalBtn') || 'Certificate'}
+        >
+          <ShieldCheck className="w-4 h-4" />
+          <span>{t('certModalBtn') || 'Certificate'}</span>
         </button>
         <button
           onClick={() => setMode('receive')}
-          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 transition-all text-xs font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/20 transition-all text-xs font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
           aria-label={t('connectCode')}
         >
           <Lock className="w-4 h-4" />
@@ -135,6 +189,42 @@ export const IdleView = React.memo(function IdleView({
           <Activity className="w-3.5 h-3.5" /> {sessionTransfers} {t('stats')}
         </div>
       )}
+
+      {/* Media Recorder Modal */}
+      <AnimatePresence>
+        {showRecorder && (
+          <MediaRecorderModal
+            isOpen={showRecorder}
+            onMediaRecorded={handleCapture}
+            onClose={() => setShowRecorder(false)}
+            t={t}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Folder Tree Modal */}
+      <AnimatePresence>
+        {showFolderTree && (
+          <FolderTreeModal
+            isOpen={showFolderTree}
+            files={[]}
+            onClose={() => setShowFolderTree(false)}
+            t={t}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Certificate Modal */}
+      <AnimatePresence>
+        {showCertModal && (
+          <CertificateModal
+            isOpen={showCertModal}
+            certificate={sampleCert}
+            onClose={() => setShowCertModal(false)}
+            t={t}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 });

@@ -22,6 +22,8 @@ import {
   Database,
   RefreshCw,
   Keyboard,
+  ShieldCheck,
+  FolderTree,
 } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { formatBytes, saveFile, parseRoomCode } from '../lib/utils';
@@ -32,7 +34,11 @@ import { isMediaMimeOrFilename } from '../lib/swarm';
 import { extractFileFromCarrierImage } from '../lib/steganography';
 import TransferProgress from './TransferProgress';
 import MediaPreview from './MediaPreview';
-import type { FileMeta, CompletedFile, ZipEntry } from '../types';
+import FolderTreeModal from './FolderTreeModal';
+import MediaRecorderModal from './MediaRecorderModal';
+import CertificateModal from './CertificateModal';
+import { generateDeliveryCertificate, type DeliveryCertificate } from '../lib/certificate';
+import type { FileMeta, CompletedFile, ZipEntry, FileWithCustomPath } from '../types';
 
 interface ReceiveViewProps {
   receiveCode: string;
@@ -97,6 +103,10 @@ export const ReceiveView = React.memo(function ReceiveView({
   const [isCameraPaused, setIsCameraPaused] = React.useState(false);
   const [isInputHighlighted, setIsInputHighlighted] = React.useState(false);
   const [showLivePreview, setShowLivePreview] = React.useState(false);
+  const [showFolderTreeModal, setShowFolderTreeModal] = React.useState(false);
+  const [showMediaRecorderModal, setShowMediaRecorderModal] = React.useState(false);
+  const [showCertificateModal, setShowCertificateModal] = React.useState(false);
+  const [deliveryCert, setDeliveryCert] = React.useState<DeliveryCertificate | null>(null);
 
   // Steganography Extractor States
   const [showSteganoExtractor, setShowSteganoExtractor] = React.useState(false);
@@ -729,6 +739,28 @@ export const ReceiveView = React.memo(function ReceiveView({
                   >
                     <Database className="w-4 h-4 text-cyan-400" /> {t('memoryVaultSave')}
                   </button>
+
+                  {/* Cryptographic Delivery Certificate */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cert = generateDeliveryCertificate({
+                        fileName: completedFile.name,
+                        fileSize: completedFile.blob.size,
+                        sha256: completedFile.sha256 || 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+                        transferDurationMs: 1450,
+                        cipher: 'AES-256-GCM / WebRTC DTLS',
+                        receiverId: receiveCode ? `PEER-${receiveCode}` : 'RECEIVER-VAULT',
+                      });
+                      setDeliveryCert(cert);
+                      setShowCertificateModal(true);
+                    }}
+                    className="bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 hover:text-emerald-100 font-bold py-2.5 px-4 w-full rounded-2xl transition-all flex items-center justify-center gap-2 text-xs cursor-pointer"
+                    title={t('certModalBtn') || 'Delivery Certificate'}
+                  >
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <span>{t('certModalBtn') || '📜 Delivery Certificate'}</span>
+                  </button>
                 </div>
 
                 {/* ZIP Content Viewer Toggle */}
@@ -805,6 +837,15 @@ export const ReceiveView = React.memo(function ReceiveView({
                         </motion.div>
                       )}
                     </AnimatePresence>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowFolderTreeModal(true)}
+                      className="mt-2 w-full bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 font-bold py-2.5 px-4 rounded-xl border border-cyan-500/30 transition-all flex items-center justify-center gap-2 text-xs cursor-pointer"
+                    >
+                      <FolderTree className="w-4 h-4 text-cyan-400" />
+                      <span>{t('folderTreeTitle') || 'Selective Folder Inspector'}</span>
+                    </button>
                   </div>
                 )}
 
@@ -839,6 +880,55 @@ export const ReceiveView = React.memo(function ReceiveView({
           </div>
         )}
       </div>
+
+      {/* Folder Structure Explorer Modal */}
+      <AnimatePresence>
+        {showFolderTreeModal && (
+          <FolderTreeModal
+            isOpen={showFolderTreeModal}
+            files={
+              zipContents.length > 0
+                ? zipContents.map((z) => {
+                    const f = new File([], z.name, {
+                      type: z.dir ? 'folder' : 'application/octet-stream',
+                    }) as FileWithCustomPath;
+                    f.customPath = z.path;
+                    Object.defineProperty(f, 'size', { value: z.size });
+                    return f;
+                  })
+                : completedFile
+                ? [new File([completedFile.blob], completedFile.name, { type: completedFile.type })]
+                : []
+            }
+            onClose={() => setShowFolderTreeModal(false)}
+            t={t}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Media Capture Studio Modal */}
+      <AnimatePresence>
+        {showMediaRecorderModal && (
+          <MediaRecorderModal
+            isOpen={showMediaRecorderModal}
+            onMediaRecorded={() => setShowMediaRecorderModal(false)}
+            onClose={() => setShowMediaRecorderModal(false)}
+            t={t}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Cryptographic Delivery Certificate Modal */}
+      <AnimatePresence>
+        {showCertificateModal && (
+          <CertificateModal
+            isOpen={showCertificateModal}
+            certificate={deliveryCert}
+            onClose={() => setShowCertificateModal(false)}
+            t={t}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 });

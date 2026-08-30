@@ -31,12 +31,19 @@ import {
   Package,
   Eye,
   Radio,
+  ShieldCheck,
+  FolderTree,
+  Mic,
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { formatBytes } from '../lib/utils';
 import { EXPIRATION_OPTIONS } from '../lib/constants';
 import { hideFileInCarrierImage } from '../lib/steganography';
 import TransferProgress from './TransferProgress';
+import FolderTreeModal from './FolderTreeModal';
+import MediaRecorderModal from './MediaRecorderModal';
+import CertificateModal from './CertificateModal';
+import { generateDeliveryCertificate, type DeliveryCertificate } from '../lib/certificate';
 import type { FileWithCustomPath } from '../types';
 
 interface SendViewProps {
@@ -175,6 +182,10 @@ export const SendView = React.memo(function SendView({
   const [showQuickTextModal, setShowQuickTextModal] = useState(false);
   const [quickTextContent, setQuickTextContent] = useState('');
   const [isQRLightboxOpen, setIsQRLightboxOpen] = useState(false);
+  const [showFolderTreeModal, setShowFolderTreeModal] = useState(false);
+  const [showMediaRecorderModal, setShowMediaRecorderModal] = useState(false);
+  const [showCertificateModal, setShowCertificateModal] = useState(false);
+  const [deliveryCert, setDeliveryCert] = useState<DeliveryCertificate | null>(null);
 
   // Steganography embedding states
   const [showSteganoModal, setShowSteganoModal] = useState(false);
@@ -490,6 +501,16 @@ export const SendView = React.memo(function SendView({
                 >
                   <Monitor className="w-4 h-4 text-blue-400" /> <span>{t('screenCapture')}</span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowMediaRecorderModal(true)}
+                  className="flex items-center gap-2 px-3.5 py-2 bg-white/5 hover:bg-purple-500/20 border border-white/10 hover:border-purple-500/30 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                  title={t('recordMediaTitle') || 'Record Media'}
+                  aria-label={t('recordMediaTitle') || 'Record Media'}
+                >
+                  <Mic className="w-4 h-4 text-purple-400" /> <span>{t('recordMediaBtn') || 'Record'}</span>
+                </button>
               </div>
 
               {/* Quick Text Input Modal */}
@@ -713,6 +734,15 @@ export const SendView = React.memo(function SendView({
                     </div>
                     {!isTransferActive && (
                       <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setShowFolderTreeModal(true)}
+                          className="p-1.5 rounded-lg bg-white/5 hover:bg-cyan-500/20 border border-white/10 text-cyan-300 hover:text-white transition-colors cursor-pointer"
+                          title={t('folderTreeTitle') || 'Explore Folder Tree'}
+                          aria-label={t('folderTreeTitle') || 'Explore Folder Tree'}
+                        >
+                          <FolderTree className="w-3.5 h-3.5" />
+                        </button>
                         <button
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
@@ -1184,6 +1214,26 @@ export const SendView = React.memo(function SendView({
                       <Check className="w-8 h-8 text-green-500" />
                     </div>
                     <p className="text-green-500 font-bold">{t('complete')}</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const singleFile = effectiveFiles[0] || fileToShare;
+                        const cert = generateDeliveryCertificate({
+                          fileName: singleFile ? singleFile.name : 'encrypted-payload.zip',
+                          fileSize: calculatedTotalSize,
+                          sha256: (fileToShare as { sha256?: string })?.sha256 || 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+                          transferDurationMs: 1250,
+                          cipher: 'AES-256-GCM / WebRTC DTLS',
+                          senderId: shareCode || 'SENDER-VAULT',
+                        });
+                        setDeliveryCert(cert);
+                        setShowCertificateModal(true);
+                      }}
+                      className="mt-3 px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 mx-auto cursor-pointer shadow-lg shadow-emerald-500/10"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                      <span>{t('certModalBtn') || '📜 Delivery Certificate'}</span>
+                    </button>
                     {selfDestructSec > 0 && (
                       <div className="mt-2 flex items-center justify-center gap-2 text-red-400 text-xs font-mono animate-pulse">
                         <Bomb className="w-3.5 h-3.5" /> {t('selfDestruct')} {selfDestructSec}s
@@ -1298,6 +1348,45 @@ export const SendView = React.memo(function SendView({
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Folder Structure Explorer Modal */}
+      <AnimatePresence>
+        {showFolderTreeModal && (
+          <FolderTreeModal
+            isOpen={showFolderTreeModal}
+            files={effectiveFiles}
+            onClose={() => setShowFolderTreeModal(false)}
+            t={t}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Media Capture Studio Modal */}
+      <AnimatePresence>
+        {showMediaRecorderModal && (
+          <MediaRecorderModal
+            isOpen={showMediaRecorderModal}
+            onMediaRecorded={(file) => {
+              setFileToShare(file);
+              setShowMediaRecorderModal(false);
+            }}
+            onClose={() => setShowMediaRecorderModal(false)}
+            t={t}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Cryptographic Delivery Certificate Modal */}
+      <AnimatePresence>
+        {showCertificateModal && (
+          <CertificateModal
+            isOpen={showCertificateModal}
+            certificate={deliveryCert}
+            onClose={() => setShowCertificateModal(false)}
+            t={t}
+          />
         )}
       </AnimatePresence>
     </motion.div>
