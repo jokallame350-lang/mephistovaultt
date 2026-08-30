@@ -1,5 +1,5 @@
-// MephistoVault PWA Service Worker v2
-const CACHE_NAME = 'mephistovault-v2';
+// MephistoVault PWA Service Worker v3
+const CACHE_NAME = 'mephistovault-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
