@@ -15,6 +15,10 @@ import GhostChat from './components/GhostChat';
 import NearbyDevices from './components/NearbyDevices';
 import SEOFooter from './components/SEOFooter';
 import GlobalDropzone from './components/GlobalDropzone';
+import VaultCreateView from './components/vault/VaultCreateView';
+import VaultRecipientView from './components/vault/VaultRecipientView';
+import VaultManageView from './components/vault/VaultManageView';
+import { Zap, Cloud, FolderLock } from 'lucide-react';
 import { playTransferSound, copyToClipboard, downloadQRCode, generateCode, parseRoomCode, generateShareUrl } from './lib/utils';
 
 import type { PeerMessage } from './types';
@@ -35,6 +39,12 @@ export function App() {
   });
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [sessionTransfers, setSessionTransfers] = useState(0);
+
+  // Dual-Product Mode: ⚡ Quick Drop (P2P) vs ☁️ Vault Share (Hosted E2E)
+  const [productMode, setProductMode] = useState<'quick-drop' | 'vault-share' | 'vault-recipient' | 'vault-manage'>('quick-drop');
+  const [recipientVaultId, setRecipientVaultId] = useState<string>('');
+  const [recipientSecretKey, setRecipientSecretKey] = useState<string>('');
+  const [vaultSubTab, setVaultSubTab] = useState<'create' | 'manage'>('create');
 
   const t = useCallback((key: string, params?: Record<string, string | number>) => getTranslator(lang)(key, params), [lang]);
 
@@ -200,8 +210,29 @@ export function App() {
     handleSelfDestruct,
   );
 
-  // Auto-connect room from URL query (?room=CODE / ?code=CODE) or hash (#CODE) on mount
+  // Auto-connect room from URL query (?room=CODE / ?code=CODE) or hash (#CODE) or Vault route (/v/:id) on mount
   useEffect(() => {
+    // 1. Check for Vault Share recipient or manage route (/v/:id#KEY or /v/:id/manage)
+    if (typeof window !== 'undefined') {
+      const pathname = window.location.pathname;
+      if (pathname.startsWith('/v/')) {
+        const parts = pathname.slice(3).split('/');
+        const id = parts[0];
+        if (id) {
+          setRecipientVaultId(id);
+          const hashSecret = window.location.hash.replace(/^#/, '');
+          setRecipientSecretKey(hashSecret);
+          if (parts[1] === 'manage') {
+            setProductMode('vault-manage');
+          } else {
+            setProductMode('vault-recipient');
+          }
+          return;
+        }
+      }
+    }
+
+    // 2. Check for P2P Quick Drop room code
     const rawUrl = window.location.href;
     const roomCode = parseRoomCode(rawUrl);
 
@@ -356,114 +387,221 @@ export function App() {
       />
 
       <main className="z-10 w-full max-w-lg" id="main-content">
-        <AnimatePresence mode="wait">
-          {peer.mode === 'idle' && (
-            <IdleView 
-              setMode={peer.setMode} 
-              sessionTransfers={sessionTransfers} 
-              onMediaCaptured={handleMediaCaptured}
-              t={t} 
-            />
-          )}
+        {/* Dual Mode Switcher (P2P Quick Drop vs Hosted Vault Share) */}
+        {productMode !== 'vault-recipient' && (
+          <div className="flex items-center justify-center p-1 bg-slate-950/80 border border-white/10 rounded-2xl max-w-xs mx-auto mb-6 backdrop-blur-md shadow-lg">
+            <button
+              type="button"
+              onClick={() => setProductMode('quick-drop')}
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold font-mono transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                productMode === 'quick-drop'
+                  ? 'bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                  : 'text-slate-400 hover:text-white border border-transparent'
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{t('quickDrop') || '⚡ Quick Drop'}</span>
+            </button>
 
-          {peer.mode === 'send' && (
-            <SendView
-              fileToShare={fileHandler.fileToShare}
-              setFileToShare={fileHandler.setFileToShare}
-              selectedFiles={fileHandler.selectedFiles}
-              totalPayloadSize={fileHandler.totalPayloadSize}
-              onRemoveFile={fileHandler.removeFile}
-              onClearFiles={fileHandler.clearFiles}
-              onAddFiles={fileHandler.addFiles}
-              isZipping={fileHandler.isZipping}
-              zipProgress={fileHandler.zipProgress}
-              isDragging={fileHandler.isDragging}
-              previewUrl={fileHandler.previewUrl}
-              fileInputRef={fileHandler.fileInputRef}
-              folderInputRef={fileHandler.folderInputRef}
-              onFileChange={fileHandler.handleFileChange}
-              onDragOver={fileHandler.handleDragOver}
-              onDragLeave={fileHandler.handleDragLeave}
-              onDrop={fileHandler.handleDrop}
-              shareCode={peer.shareCode}
-              isConnected={peer.isConnected}
-              errorStatus={peer.errorStatus}
-              transferProgress={peer.transferProgress}
-              transferSpeed={peer.transferSpeed}
-              transferETA={peer.transferETA}
-              peerCount={peer.peerCount}
-              selfDestructSec={selfDestructSec}
-              copied={peer.copied}
-              showQR={peer.showQR}
-              setShowQR={peer.setShowQR}
-              expirationSec={peer.expirationSec}
-              setExpirationSec={peer.setExpirationSec}
-              onCopy={handleCopyLink}
-              onDownloadQR={handleDownloadQR}
-              onClose={handleSendClose}
-              liveSyncManager={peer.liveSyncManager}
-              compressionStats={peer.compressionStats}
-              t={t}
-            />
-          )}
-
-          {peer.mode === 'receive' && (
-            <ReceiveView
-              receiveCode={peer.receiveCode}
-              setReceiveCode={peer.setReceiveCode}
-              isConnected={peer.isConnected}
-              errorStatus={peer.errorStatus}
-              transferProgress={peer.transferProgress}
-              transferSpeed={peer.transferSpeed}
-              transferETA={peer.transferETA}
-              fileMeta={peer.fileMeta}
-              completedFile={peer.completedFile}
-              selfDestructSec={selfDestructSec}
-              showQRScanner={peer.showQR}
-              setShowQRScanner={peer.setShowQR}
-              videoPreviewUrl={fileHandler.videoPreviewUrl}
-              showVideoPlayer={fileHandler.showVideoPlayer}
-              setShowVideoPlayer={fileHandler.setShowVideoPlayer}
-              zipContents={fileHandler.zipContents}
-              showZipPreview={fileHandler.showZipPreview}
-              setShowZipPreview={fileHandler.setShowZipPreview}
-              liveMediaUrl={peer.liveMediaUrl}
-              isLiveMediaAvailable={peer.isLiveMediaAvailable}
-              handleBurnOnDownload={peer.handleBurnOnDownload}
-              onConnect={peer.connectAsReceiver}
-              onClose={handleReceiveClose}
-              liveSyncManager={peer.liveSyncManager}
-              compressionStats={peer.compressionStats}
-              t={t}
-            />
-          )}
-        </AnimatePresence>
-
-        {peer.mode !== 'idle' && (
-          <GhostChat
-            isConnected={peer.isConnected}
-            chatMessages={chat.chatMessages}
-            chatInput={chat.chatInput}
-            setChatInput={chat.setChatInput}
-            showEmojiPicker={chat.showEmojiPicker}
-            setShowEmojiPicker={chat.setShowEmojiPicker}
-            onSendMessage={chat.sendChatMessage}
-            onSendEmoji={chat.sendEmoji}
-            onSendClipboard={chat.sendClipboard}
-            chatEndRef={chat.chatEndRef}
-            t={t}
-          />
+            <button
+              type="button"
+              onClick={() => {
+                setProductMode('vault-share');
+                setVaultSubTab('create');
+              }}
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold font-mono transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                productMode === 'vault-share' || productMode === 'vault-manage'
+                  ? 'bg-cyan-500/20 border border-cyan-500/50 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.2)]'
+                  : 'text-slate-400 hover:text-white border border-transparent'
+              }`}
+            >
+              <Cloud className="w-3.5 h-3.5 text-cyan-400" />
+              <span>{t('vaultShare') || '☁️ Vault Share'}</span>
+            </button>
+          </div>
         )}
 
-        {peer.mode === 'idle' && (
-          <NearbyDevices
-            nearbyDevices={discovery.nearbyDevices}
-            showNearby={discovery.showNearby}
-            setShowNearby={discovery.setShowNearby}
-            onConnectToDevice={handleConnectToDevice}
-            onInviteDevice={handleInviteDevice}
-            t={t}
-          />
+        {/* ☁️ VAULT SHARE MODE */}
+        {(productMode === 'vault-share' || productMode === 'vault-manage') && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-center gap-2 mb-4 text-xs font-mono">
+              <button
+                type="button"
+                onClick={() => {
+                  setProductMode('vault-share');
+                  setVaultSubTab('create');
+                }}
+                className={`px-3.5 py-1.5 rounded-xl border transition-all cursor-pointer ${
+                  vaultSubTab === 'create' && productMode === 'vault-share'
+                    ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300 font-bold shadow-[0_0_15px_rgba(6,182,212,0.2)]'
+                    : 'bg-slate-900/60 border-white/10 text-slate-400 hover:text-white'
+                }`}
+              >
+                ☁️ {t('createVaultButton') || 'Create Vault'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setProductMode('vault-manage');
+                  setVaultSubTab('manage');
+                }}
+                className={`px-3.5 py-1.5 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 ${
+                  vaultSubTab === 'manage' || productMode === 'vault-manage'
+                    ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300 font-bold shadow-[0_0_15px_rgba(6,182,212,0.2)]'
+                    : 'bg-slate-900/60 border-white/10 text-slate-400 hover:text-white'
+                }`}
+              >
+                <FolderLock className="w-3.5 h-3.5" />
+                <span>{t('myVaults') || 'My Vaults'}</span>
+              </button>
+            </div>
+
+            {vaultSubTab === 'create' && productMode === 'vault-share' && (
+              <VaultCreateView t={t} />
+            )}
+
+            {(vaultSubTab === 'manage' || productMode === 'vault-manage') && (
+              <VaultManageView t={t} />
+            )}
+          </div>
+        )}
+
+        {/* ☁️ VAULT RECIPIENT MODE (/v/:vaultId) */}
+        {productMode === 'vault-recipient' && (
+          <div className="space-y-4">
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setProductMode('quick-drop');
+                  window.history.pushState({}, '', '/');
+                }}
+                className="text-xs text-slate-400 hover:text-cyan-400 font-mono transition-colors cursor-pointer"
+              >
+                ← Back to MephistoVault Home
+              </button>
+            </div>
+            <VaultRecipientView
+              vaultId={recipientVaultId}
+              secretKeyString={recipientSecretKey}
+              t={t}
+            />
+          </div>
+        )}
+
+        {/* ⚡ QUICK DROP MODE (P2P WebRTC Direct) */}
+        {productMode === 'quick-drop' && (
+          <>
+            <AnimatePresence mode="wait">
+              {peer.mode === 'idle' && (
+                <IdleView 
+                  setMode={peer.setMode} 
+                  sessionTransfers={sessionTransfers} 
+                  onMediaCaptured={handleMediaCaptured}
+                  t={t} 
+                />
+              )}
+
+              {peer.mode === 'send' && (
+                <SendView
+                  fileToShare={fileHandler.fileToShare}
+                  setFileToShare={fileHandler.setFileToShare}
+                  selectedFiles={fileHandler.selectedFiles}
+                  totalPayloadSize={fileHandler.totalPayloadSize}
+                  onRemoveFile={fileHandler.removeFile}
+                  onClearFiles={fileHandler.clearFiles}
+                  onAddFiles={fileHandler.addFiles}
+                  isZipping={fileHandler.isZipping}
+                  zipProgress={fileHandler.zipProgress}
+                  isDragging={fileHandler.isDragging}
+                  previewUrl={fileHandler.previewUrl}
+                  fileInputRef={fileHandler.fileInputRef}
+                  folderInputRef={fileHandler.folderInputRef}
+                  onFileChange={fileHandler.handleFileChange}
+                  onDragOver={fileHandler.handleDragOver}
+                  onDragLeave={fileHandler.handleDragLeave}
+                  onDrop={fileHandler.handleDrop}
+                  shareCode={peer.shareCode}
+                  isConnected={peer.isConnected}
+                  errorStatus={peer.errorStatus}
+                  transferProgress={peer.transferProgress}
+                  transferSpeed={peer.transferSpeed}
+                  transferETA={peer.transferETA}
+                  peerCount={peer.peerCount}
+                  selfDestructSec={selfDestructSec}
+                  copied={peer.copied}
+                  showQR={peer.showQR}
+                  setShowQR={peer.setShowQR}
+                  expirationSec={peer.expirationSec}
+                  setExpirationSec={peer.setExpirationSec}
+                  onCopy={handleCopyLink}
+                  onDownloadQR={handleDownloadQR}
+                  onClose={handleSendClose}
+                  liveSyncManager={peer.liveSyncManager}
+                  compressionStats={peer.compressionStats}
+                  t={t}
+                />
+              )}
+
+              {peer.mode === 'receive' && (
+                <ReceiveView
+                  receiveCode={peer.receiveCode}
+                  setReceiveCode={peer.setReceiveCode}
+                  isConnected={peer.isConnected}
+                  errorStatus={peer.errorStatus}
+                  transferProgress={peer.transferProgress}
+                  transferSpeed={peer.transferSpeed}
+                  transferETA={peer.transferETA}
+                  fileMeta={peer.fileMeta}
+                  completedFile={peer.completedFile}
+                  selfDestructSec={selfDestructSec}
+                  showQRScanner={peer.showQR}
+                  setShowQRScanner={peer.setShowQR}
+                  videoPreviewUrl={fileHandler.videoPreviewUrl}
+                  showVideoPlayer={fileHandler.showVideoPlayer}
+                  setShowVideoPlayer={fileHandler.setShowVideoPlayer}
+                  zipContents={fileHandler.zipContents}
+                  showZipPreview={fileHandler.showZipPreview}
+                  setShowZipPreview={fileHandler.setShowZipPreview}
+                  liveMediaUrl={peer.liveMediaUrl}
+                  isLiveMediaAvailable={peer.isLiveMediaAvailable}
+                  handleBurnOnDownload={peer.handleBurnOnDownload}
+                  onConnect={peer.connectAsReceiver}
+                  onClose={handleReceiveClose}
+                  liveSyncManager={peer.liveSyncManager}
+                  compressionStats={peer.compressionStats}
+                  t={t}
+                />
+              )}
+            </AnimatePresence>
+
+            {peer.mode !== 'idle' && (
+              <GhostChat
+                isConnected={peer.isConnected}
+                chatMessages={chat.chatMessages}
+                chatInput={chat.chatInput}
+                setChatInput={chat.setChatInput}
+                showEmojiPicker={chat.showEmojiPicker}
+                setShowEmojiPicker={chat.setShowEmojiPicker}
+                onSendMessage={chat.sendChatMessage}
+                onSendEmoji={chat.sendEmoji}
+                onSendClipboard={chat.sendClipboard}
+                chatEndRef={chat.chatEndRef}
+                t={t}
+              />
+            )}
+
+            {peer.mode === 'idle' && (
+              <NearbyDevices
+                nearbyDevices={discovery.nearbyDevices}
+                showNearby={discovery.showNearby}
+                setShowNearby={discovery.setShowNearby}
+                onConnectToDevice={handleConnectToDevice}
+                onInviteDevice={handleInviteDevice}
+                t={t}
+              />
+            )}
+          </>
         )}
       </main>
 
