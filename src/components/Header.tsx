@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Globe, ChevronDown, Check, Clock, Palette, Volume2, VolumeX } from 'lucide-react';
+import { Globe, ChevronDown, Check, Clock, Palette, Volume2, VolumeX, ShieldAlert } from 'lucide-react';
 import { SUPPORTED_LANGS, type LangKey } from '../i18n';
 import { formatTime } from '../lib/utils';
 import { isSoundEnabled, toggleSoundEnabled, playPeerConnectedChime } from '../lib/audioFX';
@@ -14,6 +14,7 @@ interface HeaderProps {
   setLang: (l: LangKey) => void;
   showLangPicker: boolean;
   setShowLangPicker: (v: boolean) => void;
+  onPanic?: () => void;
   t: (key: string) => string;
 }
 
@@ -26,6 +27,7 @@ export const Header = React.memo(function Header({
   setLang,
   showLangPicker,
   setShowLangPicker,
+  onPanic,
   t,
 }: HeaderProps) {
   const [soundOn, setSoundOn] = useState<boolean>(() => isSoundEnabled());
@@ -73,6 +75,18 @@ export const Header = React.memo(function Header({
           <span className="hidden sm:inline">MephistoMail</span>
         </a>
 
+        {/* Anti-Forensic Panic Key Button */}
+        {onPanic && (
+          <button
+            onClick={onPanic}
+            className="p-2 rounded-xl bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors flex items-center gap-1 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500/50"
+            title="Panic Key: 3x ESC or Alt+P (Instant Zero-Trace Wipe & Camouflage)"
+            aria-label="Panic Emergency Zero-Trace Wipe"
+          >
+            <ShieldAlert className="w-5 h-5 text-red-400 animate-pulse" />
+          </button>
+        )}
+
         {/* Language Dropdown */}
         <div className="relative">
           <button
@@ -108,16 +122,19 @@ export const Header = React.memo(function Header({
                       localStorage.setItem('ms-lang', l.code);
                       setShowLangPicker(false);
                     }}
-                    className={`w-full px-4 py-2.5 text-left text-sm flex items-center gap-3 hover:bg-white/10 transition-colors cursor-pointer ${
-                      lang === l.code ? 'bg-white/5 text-white' : 'text-slate-400'
+                    className={`w-full flex items-center justify-between px-3 py-2 text-xs font-bold transition-colors cursor-pointer ${
+                      lang === l.code
+                        ? 'bg-cyan-500/20 text-cyan-400'
+                        : 'text-slate-300 hover:bg-white/5 hover:text-white'
                     }`}
                     role="option"
                     aria-selected={lang === l.code}
-                    aria-label={`Switch language to ${l.label}`}
                   >
-                    <span className="text-lg">{l.flag}</span>
-                    <span>{l.label}</span>
-                    {lang === l.code && <Check className="w-3 h-3 text-emerald-400 ml-auto" />}
+                    <span className="flex items-center gap-2">
+                      <span>{l.flag}</span>
+                      <span>{l.label}</span>
+                    </span>
+                    {lang === l.code && <Check className="w-3.5 h-3.5" />}
                   </button>
                 ))}
               </motion.div>
@@ -126,7 +143,11 @@ export const Header = React.memo(function Header({
         </div>
 
         <button
-          onClick={() => setTheme(theme === 'dark' ? 'cyberpunk' : theme === 'cyberpunk' ? 'light' : 'dark')}
+          onClick={() => {
+            const next = theme === 'dark' ? 'cyberpunk' : theme === 'cyberpunk' ? 'light' : 'dark';
+            setTheme(next);
+            localStorage.setItem('ms-theme', next);
+          }}
           className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors flex items-center gap-1 cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
           title={`Switch Theme (Current: ${currentThemeLabel})`}
           aria-label={`Switch Theme from ${currentThemeLabel}`}

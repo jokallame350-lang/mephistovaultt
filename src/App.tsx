@@ -5,6 +5,7 @@ import { useFileHandler } from './hooks/useFileHandler';
 import { useChat } from './hooks/useChat';
 import { useLANDiscovery } from './hooks/useLANDiscovery';
 import { useSelfDestruct } from './hooks/useSelfDestruct';
+import { usePanicKey } from './hooks/usePanicKey';
 import { getTranslator, type LangKey } from './i18n';
 import Header from './components/Header';
 import IdleView from './components/IdleView';
@@ -179,6 +180,8 @@ export function App() {
 
   const peerResetConnection = peer.resetConnection;
 
+  const { triggerPanic } = usePanicKey({ onPanic: peerResetConnection });
+
   const handleSelfDestruct = useCallback(() => {
     peerResetConnection();
     setPeerMode('idle');
@@ -346,6 +349,7 @@ export function App() {
         setLang={setLang}
         showLangPicker={showLangPicker}
         setShowLangPicker={setShowLangPicker}
+        onPanic={triggerPanic}
         t={t}
       />
 

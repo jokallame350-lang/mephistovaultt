@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Wifi, Download } from 'lucide-react';
+import { Wifi, Download, Zap } from 'lucide-react';
 import type { DeviceInfo } from '../types';
 
 interface NearbyDevicesProps {
@@ -33,7 +33,10 @@ export const NearbyDevices = React.memo(function NearbyDevices({
             nearbyDevices.length > 0 ? 'text-green-500 animate-pulse' : 'text-slate-500'
           }`}
         />
-        {t('nearby')}{' '}
+        <span>{t('nearby')}</span>
+        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono font-bold hidden sm:inline">
+          Universal AirDrop
+        </span>
         {nearbyDevices.length > 0 && (
           <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full font-mono">
             {nearbyDevices.length}
@@ -49,6 +52,13 @@ export const NearbyDevices = React.memo(function NearbyDevices({
             className="overflow-hidden"
           >
             <div className="glass-panel p-4 mt-2">
+              <div className="flex items-center justify-between gap-2 mb-3 pb-2 border-b border-white/5">
+                <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-mono font-bold">
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>Universal Web AirDrop</span>
+                </div>
+                <span className="text-[10px] text-slate-500 font-mono">iOS • Android • Windows • Mac • Linux</span>
+              </div>
               {nearbyDevices.length === 0 ? (
                 <p className="text-sm text-slate-500 text-center italic">{t('noNearby')}</p>
               ) : (
