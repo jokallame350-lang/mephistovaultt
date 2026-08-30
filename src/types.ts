@@ -6,11 +6,45 @@ export type AppMode = 'idle' | 'send' | 'receive';
 // ── PeerJS Messages (discriminated union) ──
 export type PeerMessage =
   | { type: 'metadata'; name: string; size: number; mime: string; sha256?: string; expirationSec?: number }
-  | { type: 'chunk'; buffer: ArrayBuffer; offset: number }
+  | { type: 'chunk'; buffer: ArrayBuffer; offset: number; chunkIndex?: number }
   | { type: 'request-metadata' }
-  | { type: 'request-chunk'; offset: number }
+  | { type: 'request-chunk'; offset: number; chunkIndex?: number }
   | { type: 'chat'; text?: string; encrypted?: ArrayBuffer }
-  | { type: 'burn' };
+  | { type: 'burn' }
+  | { type: 'swarm-have'; chunkIndex: number }
+  | { type: 'swarm-bitfield'; bitfield: number[] }
+  | { type: 'swarm-peers'; peers: string[] }
+  | { type: 'swarm-request-chunk'; chunkIndex: number };
+
+// ── Swarm Coordination Types ──
+export interface SwarmPeerInfo {
+  id: string;
+  isSeed: boolean;
+  downloadedChunks: number;
+  totalChunks: number;
+  bytesDownloaded: number;
+  bytesUploaded: number;
+  lastSeen: number;
+}
+
+export interface SwarmStats {
+  totalPeers: number;
+  seeds: number;
+  leechers: number;
+  totalUploaded: number;
+  totalDownloaded: number;
+  completionRatio: number;
+}
+
+export interface LiveMediaState {
+  isMedia: boolean;
+  isAudio: boolean;
+  isVideo: boolean;
+  liveMediaUrl: string | null;
+  streamableBytes: number;
+  streamableProgress: number;
+  bufferedChunks: number;
+}
 
 // ── Lobby / Discovery Messages ──
 export type LobbyMessage =

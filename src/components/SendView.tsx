@@ -29,10 +29,13 @@ import {
   Trash2,
   Layers,
   Package,
+  Eye,
+  Radio,
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { formatBytes } from '../lib/utils';
 import { EXPIRATION_OPTIONS } from '../lib/constants';
+import { hideFileInCarrierImage } from '../lib/steganography';
 import TransferProgress from './TransferProgress';
 import type { FileWithCustomPath } from '../types';
 
@@ -172,6 +175,51 @@ export const SendView = React.memo(function SendView({
   const [showQuickTextModal, setShowQuickTextModal] = useState(false);
   const [quickTextContent, setQuickTextContent] = useState('');
   const [isQRLightboxOpen, setIsQRLightboxOpen] = useState(false);
+
+  // Steganography embedding states
+  const [showSteganoModal, setShowSteganoModal] = useState(false);
+  const [stegoCarrierFile, setStegoCarrierFile] = useState<File | null>(null);
+  const [stegoSecretFile, setStegoSecretFile] = useState<File | null>(null);
+  const [stegoPasscode, setStegoPasscode] = useState('');
+  const [isStegoEmbedding, setIsStegoEmbedding] = useState(false);
+  const [stegoError, setStegoError] = useState<string | null>(null);
+  const stegoCarrierInputRef = React.useRef<HTMLInputElement | null>(null);
+  const stegoSecretInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const handleSteganoEmbed = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stegoCarrierFile || !stegoSecretFile) {
+      setStegoError(t('stegoDropCarrier') + ' & ' + t('stegoDropSecret'));
+      return;
+    }
+
+    setIsStegoEmbedding(true);
+    setStegoError(null);
+
+    try {
+      const stegoBlob = await hideFileInCarrierImage(
+        stegoCarrierFile,
+        stegoSecretFile,
+        stegoPasscode.trim() || undefined
+      );
+
+      const cleanCarrierName = stegoCarrierFile.name.replace(/\.[^/.]+$/, '');
+      const stegoFile = new File([stegoBlob], `stego-vault-${cleanCarrierName}.png`, {
+        type: 'image/png',
+      });
+
+      setFileToShare(stegoFile);
+      setShowSteganoModal(false);
+      setStegoCarrierFile(null);
+      setStegoSecretFile(null);
+      setStegoPasscode('');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setStegoError(message);
+    } finally {
+      setIsStegoEmbedding(false);
+    }
+  }, [stegoCarrierFile, stegoSecretFile, stegoPasscode, setFileToShare, t]);
 
   const effectiveFiles = selectedFiles.length > 0 ? selectedFiles : fileToShare ? [fileToShare] : [];
   const calculatedTotalSize =
@@ -415,6 +463,16 @@ export const SendView = React.memo(function SendView({
 
                 <button
                   type="button"
+                  onClick={() => setShowSteganoModal(true)}
+                  className="flex items-center gap-2 px-3.5 py-2 bg-white/5 hover:bg-pink-500/20 border border-white/10 hover:border-pink-500/30 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-pink-500/50"
+                  title={t('stegoEmbed')}
+                  aria-label={t('stegoEmbed')}
+                >
+                  <Eye className="w-4 h-4 text-pink-400" /> <span>{t('stegoEmbed')}</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={handleInstantCamera}
                   className="flex items-center gap-2 px-3.5 py-2 bg-white/5 hover:bg-pink-500/20 border border-white/10 hover:border-pink-500/30 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-pink-500/50"
                   title={t('instantPhoto')}
@@ -478,6 +536,147 @@ export const SendView = React.memo(function SendView({
                           className="px-4 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-xs font-bold text-white cursor-pointer"
                         >
                           {t('share')}
+                        </button>
+                      </div>
+                    </form>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Steganography Embed Modal */}
+              <AnimatePresence>
+                {showSteganoModal && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="mt-4 p-5 bg-black/75 border border-pink-500/40 rounded-2xl space-y-4 shadow-2xl shadow-pink-500/10"
+                    role="dialog"
+                    aria-label="Steganography Conceal Dialog"
+                  >
+                    {/* Hidden inputs for Stegano Modal */}
+                    <input
+                      ref={stegoCarrierInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          setStegoCarrierFile(e.target.files[0]);
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                    <input
+                      ref={stegoSecretInputRef}
+                      type="file"
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          setStegoSecretFile(e.target.files[0]);
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+
+                    <div className="flex items-center justify-between border-b border-pink-500/20 pb-2">
+                      <span className="text-xs font-bold text-pink-300 flex items-center gap-2">
+                        <Eye className="w-4 h-4 text-pink-400" />
+                        {t('stegoModalTitle')}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowSteganoModal(false)}
+                        className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10"
+                        aria-label="Close Stegano Dialog"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <p className="text-[11px] text-slate-400">{t('stegoDesc')}</p>
+
+                    <form onSubmit={handleSteganoEmbed} className="space-y-3 text-left">
+                      {/* Carrier Image Selector */}
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-mono text-pink-300/80 font-bold block">
+                          1. {t('stegoCarrierLabel')}
+                        </label>
+                        <div
+                          onClick={() => stegoCarrierInputRef.current?.click()}
+                          className="border border-dashed border-pink-500/30 hover:border-pink-400 p-3 rounded-xl bg-pink-500/5 hover:bg-pink-500/10 cursor-pointer flex items-center justify-between transition-colors"
+                        >
+                          <span className="text-xs text-slate-300 truncate">
+                            {stegoCarrierFile ? `🖼️ ${stegoCarrierFile.name} (${formatBytes(stegoCarrierFile.size)})` : t('stegoDropCarrier')}
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-pink-500/20 text-pink-300 font-bold">
+                            {stegoCarrierFile ? t('changeCode') : '+ Choose'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Secret Payload Selector */}
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-mono text-pink-300/80 font-bold block">
+                          2. {t('stegoPayloadLabel')}
+                        </label>
+                        <div
+                          onClick={() => stegoSecretInputRef.current?.click()}
+                          className="border border-dashed border-emerald-500/30 hover:border-emerald-400 p-3 rounded-xl bg-emerald-500/5 hover:bg-emerald-500/10 cursor-pointer flex items-center justify-between transition-colors"
+                        >
+                          <span className="text-xs text-slate-300 truncate">
+                            {stegoSecretFile ? `📦 ${stegoSecretFile.name} (${formatBytes(stegoSecretFile.size)})` : t('stegoDropSecret')}
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">
+                            {stegoSecretFile ? t('changeCode') : '+ Choose'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Passcode (Optional) */}
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-mono text-slate-400 block">
+                          3. {t('stegoPasscode')}
+                        </label>
+                        <input
+                          type="password"
+                          value={stegoPasscode}
+                          onChange={(e) => setStegoPasscode(e.target.value)}
+                          placeholder="Optional PIN / Passcode"
+                          className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-pink-500/50"
+                        />
+                      </div>
+
+                      {stegoError && (
+                        <div className="text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 p-2 rounded-lg">
+                          {stegoError}
+                        </div>
+                      )}
+
+                      <div className="flex justify-end gap-2 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowSteganoModal(false)}
+                          className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-bold text-slate-300 cursor-pointer"
+                        >
+                          {t('cancel')}
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={!stegoCarrierFile || !stegoSecretFile || isStegoEmbedding}
+                          className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 disabled:opacity-50 text-xs font-bold text-white cursor-pointer flex items-center gap-1.5 shadow-lg shadow-pink-500/20"
+                        >
+                          {isStegoEmbedding ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Embedding...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>{t('stegoGenerateBtn')}</span>
+                            </>
+                          )}
                         </button>
                       </div>
                     </form>
@@ -679,6 +878,28 @@ export const SendView = React.memo(function SendView({
                     </div>
                   )}
                 </div>
+
+                {/* Instant Stream Mode Banner for Audio/Video */}
+                {(() => {
+                  const singleFile = effectiveFiles[0] || fileToShare;
+                  const isMedia =
+                    singleFile &&
+                    (singleFile.type.startsWith('video/') ||
+                      singleFile.type.startsWith('audio/') ||
+                      /\.(mp4|webm|mp3|wav|ogg|m4a|flac|mov|mkv)$/i.test(singleFile.name));
+                  if (!isMedia) return null;
+                  return (
+                    <div className="flex items-center justify-between p-2.5 bg-cyan-500/10 border border-cyan-500/30 rounded-xl text-xs font-mono text-cyan-300">
+                      <div className="flex items-center gap-2">
+                        <Radio className="w-4 h-4 text-cyan-400 animate-pulse" />
+                        <span>{t('instantStreamDesc')}</span>
+                      </div>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30">
+                        {t('streamLive')}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 

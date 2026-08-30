@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Upload, Download, Zap, Flame, EyeOff, Shield, Activity, FileText, Folder, Lock } from 'lucide-react';
+import { Upload, Download, Zap, Flame, EyeOff, Shield, Activity, FileText, Folder, Lock, Eye, Play } from 'lucide-react';
 
 interface IdleViewProps {
   setMode: (m: 'idle' | 'send' | 'receive') => void;
@@ -77,6 +77,22 @@ export const IdleView = React.memo(function IdleView({
         >
           <Folder className="w-4 h-4" />
           <span>{t('bundleFolder')}</span>
+        </button>
+        <button
+          onClick={() => setMode('send')}
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-pink-500/10 border border-pink-500/20 text-pink-400 hover:bg-pink-500/20 transition-all text-xs font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-pink-500/50"
+          aria-label={t('stegoVault')}
+        >
+          <Eye className="w-4 h-4" />
+          <span>{t('stegoVault')}</span>
+        </button>
+        <button
+          onClick={() => setMode('send')}
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all text-xs font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+          aria-label={t('instantStream')}
+        >
+          <Play className="w-4 h-4" />
+          <span>{t('instantStream')}</span>
         </button>
         <button
           onClick={() => setMode('receive')}

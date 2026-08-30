@@ -418,6 +418,8 @@ export function App() {
               zipContents={fileHandler.zipContents}
               showZipPreview={fileHandler.showZipPreview}
               setShowZipPreview={fileHandler.setShowZipPreview}
+              liveMediaUrl={peer.liveMediaUrl}
+              isLiveMediaAvailable={peer.isLiveMediaAvailable}
               handleBurnOnDownload={peer.handleBurnOnDownload}
               onConnect={peer.connectAsReceiver}
               onClose={handleReceiveClose}

@@ -23,7 +23,8 @@ import {
 } from '../lib/encryption';
 import { formatETA, formatSpeed, parseRoomCode } from '../lib/utils';
 import { playPeerConnectedChime } from '../lib/audioFX';
-import type { FileMeta, CompletedFile, PeerMessage, PeerDataConnectionExt, PeerCustomError } from '../types';
+import { SwarmCoordinator, isMediaMimeOrFilename } from '../lib/swarm';
+import type { FileMeta, CompletedFile, PeerMessage, PeerDataConnectionExt, PeerCustomError, SwarmStats } from '../types';
 
 interface UsePeerConnectionProps {
   fileToShareRef: React.MutableRefObject<File | null>;
@@ -56,9 +57,26 @@ export function usePeerConnection({
   const [showQR, setShowQR] = useState(false);
   const [expirationSec, setExpirationSec] = useState(0);
 
+  // Progressive Live Media Streaming State
+  const [liveMediaUrl, setLiveMediaUrl] = useState<string | null>(null);
+  const [isLiveMediaAvailable, setIsLiveMediaAvailable] = useState(false);
+
+  // Swarm Statistics State
+  const [swarmStats, setSwarmStats] = useState<SwarmStats>({
+    totalPeers: 0,
+    seeds: 0,
+    leechers: 0,
+    totalUploaded: 0,
+    totalDownloaded: 0,
+    completionRatio: 0,
+  });
+
   const peerRef = useRef<Peer | null>(null);
   const connRef = useRef<DataConnection | null>(null);
   const multiConnsRef = useRef<DataConnection[]>([]);
+  const swarmCoordinatorRef = useRef<SwarmCoordinator>(new SwarmCoordinator());
+  const activeLiveUrlRef = useRef<string | null>(null);
+
   const fileMetaRef = useRef<FileMeta | null>(null);
   const receivedChunksRef = useRef<ArrayBuffer[]>([]);
   const receivedBytesRef = useRef(0);
@@ -120,6 +138,18 @@ export function usePeerConnection({
     activeReceiveCodeRef.current = '';
     fileSha256CacheRef.current = null;
     transferCompletedRef.current = false;
+
+    // Clean up progressive live media stream URL
+    if (activeLiveUrlRef.current) {
+      URL.revokeObjectURL(activeLiveUrlRef.current);
+      activeLiveUrlRef.current = null;
+    }
+    setLiveMediaUrl(null);
+    setIsLiveMediaAvailable(false);
+
+    // Reset Swarm coordinator
+    swarmCoordinatorRef.current.reset();
+    setSwarmStats(swarmCoordinatorRef.current.getSwarmStats());
 
     if (connRef.current) {
       try {
@@ -222,6 +252,13 @@ export function usePeerConnection({
     const blob = new Blob(receivedChunksRef.current, { type: type || 'application/octet-stream' });
     receivedChunksRef.current = []; // Free ArrayBuffers memory
 
+    // Revoke progressive stream URL as full completed file is now ready
+    if (activeLiveUrlRef.current) {
+      URL.revokeObjectURL(activeLiveUrlRef.current);
+      activeLiveUrlRef.current = null;
+    }
+    setLiveMediaUrl(null);
+
     let calculatedHash = '';
     let isShaVerified = true;
     const expectedHash = fileMetaRef.current?.sha256;
@@ -279,11 +316,17 @@ export function usePeerConnection({
 
         if (!conn.open) return;
 
+        const chunkIndex = Math.floor(offset / CHUNK_SIZE);
         conn.send({
           type: 'chunk',
           buffer: encrypted,
           offset: offset,
+          chunkIndex,
         });
+
+        // Record swarm upload stats
+        swarmCoordinatorRef.current.recordUpload(conn.peer, buffer.byteLength);
+        setSwarmStats(swarmCoordinatorRef.current.getSwarmStats());
 
         const progress = file.size === 0 ? 100 : Math.round((end / file.size) * 100);
         const newProg = end === file.size ? 100 : Math.min(99, progress);
@@ -312,13 +355,20 @@ export function usePeerConnection({
       cryptoKeyRef.current = key;
     }).catch(() => {});
 
-    // Pre-compute SHA-256 checksum of file for E2E integrity
-    if (fileToShareRef.current && !fileSha256CacheRef.current) {
-      fileToShareRef.current.arrayBuffer().then((buf) => {
-        return calculateSHA256(buf);
-      }).then((hash) => {
-        fileSha256CacheRef.current = hash;
-      }).catch(() => {});
+    // Pre-compute SHA-256 checksum of file for E2E integrity & configure Swarm
+    if (fileToShareRef.current) {
+      const file = fileToShareRef.current;
+      swarmCoordinatorRef.current.setFileInfo(file.size, CHUNK_SIZE);
+      swarmCoordinatorRef.current.markAllLocalHave();
+      setSwarmStats(swarmCoordinatorRef.current.getSwarmStats());
+
+      if (!fileSha256CacheRef.current) {
+        file.arrayBuffer().then((buf) => {
+          return calculateSHA256(buf);
+        }).then((hash) => {
+          fileSha256CacheRef.current = hash;
+        }).catch(() => {});
+      }
     }
 
     const rawRoom = code.split('#')[0] || '';
@@ -339,11 +389,41 @@ export function usePeerConnection({
     peer.on('connection', (conn) => {
       connRef.current = conn;
       multiConnsRef.current.push(conn);
+      swarmCoordinatorRef.current.addPeer(conn.peer, conn, false);
       setPeerCount(multiConnsRef.current.length);
+      setSwarmStats(swarmCoordinatorRef.current.getSwarmStats());
 
       conn.on('open', () => {
         setIsConnected(true);
         playPeerConnectedChime();
+
+        // Announce active Swarm peers and local bitfield to new receiver
+        try {
+          conn.send({
+            type: 'swarm-peers',
+            peers: multiConnsRef.current.map((c) => c.peer),
+          });
+          conn.send({
+            type: 'swarm-bitfield',
+            bitfield: swarmCoordinatorRef.current.getLocalBitfield().toArray(),
+          });
+        } catch {
+          // ignore
+        }
+
+        // Broadcast updated peer list to all other connected peers in swarm
+        multiConnsRef.current.forEach((c) => {
+          if (c !== conn && c.open) {
+            try {
+              c.send({
+                type: 'swarm-peers',
+                peers: multiConnsRef.current.map((p) => p.peer),
+              });
+            } catch {
+              // ignore
+            }
+          }
+        });
       });
 
       conn.on('data', async (data: unknown) => {
@@ -372,6 +452,28 @@ export function usePeerConnection({
         } else if (typedData.type === 'request-chunk') {
           if (typedData.offset === 0) lastSpeedCalcRef.current = { time: Date.now(), bytes: 0 };
           sendChunk(typedData.offset, conn);
+        } else if (typedData.type === 'swarm-request-chunk') {
+          const offset = typedData.chunkIndex * CHUNK_SIZE;
+          if (offset === 0) lastSpeedCalcRef.current = { time: Date.now(), bytes: 0 };
+          sendChunk(offset, conn);
+        } else if (typedData.type === 'swarm-have') {
+          // Update peer chunk availability in Swarm
+          swarmCoordinatorRef.current.updatePeerHave(conn.peer, typedData.chunkIndex);
+          setSwarmStats(swarmCoordinatorRef.current.getSwarmStats());
+
+          // Broadcast chunk availability announcement to other connected receivers in the room
+          multiConnsRef.current.forEach((c) => {
+            if (c !== conn && c.open) {
+              try {
+                c.send({ type: 'swarm-have', chunkIndex: typedData.chunkIndex });
+              } catch {
+                // ignore
+              }
+            }
+          });
+        } else if (typedData.type === 'swarm-bitfield') {
+          swarmCoordinatorRef.current.updatePeerBitfield(conn.peer, typedData.bitfield);
+          setSwarmStats(swarmCoordinatorRef.current.getSwarmStats());
         } else if (typedData.type === 'chat') {
           if (typedData.encrypted && cryptoKeyRef.current) {
             try {
@@ -395,7 +497,9 @@ export function usePeerConnection({
 
       conn.on('close', () => {
         multiConnsRef.current = multiConnsRef.current.filter((c) => c !== conn);
+        swarmCoordinatorRef.current.removePeer(conn.peer);
         setPeerCount(multiConnsRef.current.length);
+        setSwarmStats(swarmCoordinatorRef.current.getSwarmStats());
 
         if (multiConnsRef.current.length > 0) {
           connRef.current = multiConnsRef.current[multiConnsRef.current.length - 1];
@@ -472,6 +576,10 @@ export function usePeerConnection({
 
           const conn = peer.connect(targetPeerId, { reliable: true });
           connRef.current = conn;
+          multiConnsRef.current = [conn];
+          swarmCoordinatorRef.current.addPeer(targetPeerId, conn, true);
+          setPeerCount(1);
+          setSwarmStats(swarmCoordinatorRef.current.getSwarmStats());
 
           conn.on('open', async () => {
             connected = true;
@@ -522,6 +630,15 @@ export function usePeerConnection({
                   transferCompletedRef.current = false;
                   lastSpeedCalcRef.current = { time: Date.now(), bytes: receivedBytesRef.current };
 
+                  // Configure Swarm Coordinator file metrics
+                  swarmCoordinatorRef.current.setFileInfo(meta.size, CHUNK_SIZE);
+                  setSwarmStats(swarmCoordinatorRef.current.getSwarmStats());
+
+                  const mediaCheck = isMediaMimeOrFilename(meta.type, meta.name);
+                  if (mediaCheck.isMedia) {
+                    setIsLiveMediaAvailable(true);
+                  }
+
                   if (!cryptoKeyRef.current) {
                     if (!keyDerivationPromiseRef.current) {
                       keyDerivationPromiseRef.current = deriveKey(sanitizedCode);
@@ -569,6 +686,50 @@ export function usePeerConnection({
                 if (!receivedChunksRef.current[chunkIndex]) {
                   receivedChunksRef.current[chunkIndex] = decrypted as ArrayBuffer;
                   receivedBytesRef.current += byteLength;
+
+                  // Update Swarm Bitfield & Download metrics
+                  swarmCoordinatorRef.current.markLocalHave(chunkIndex);
+                  swarmCoordinatorRef.current.recordDownload(conn.peer, byteLength);
+                  setSwarmStats(swarmCoordinatorRef.current.getSwarmStats());
+
+                  // Announce chunk availability to sender/swarm
+                  try {
+                    conn.send({ type: 'swarm-have', chunkIndex });
+                  } catch {
+                    // ignore
+                  }
+
+                  // Instant Progressive Media Playback: Generate / update live progressive blob from chunk 0
+                  const meta = fileMetaRef.current;
+                  if (meta) {
+                    const mediaCheck = isMediaMimeOrFilename(meta.type, meta.name);
+                    if (mediaCheck.isMedia) {
+                      // Collect all contiguous chunks starting from 0
+                      const contiguous: ArrayBuffer[] = [];
+                      for (let i = 0; i < receivedChunksRef.current.length; i++) {
+                        if (receivedChunksRef.current[i]) {
+                          contiguous.push(receivedChunksRef.current[i]);
+                        } else {
+                          break;
+                        }
+                      }
+
+                      if (contiguous.length >= 1) {
+                        try {
+                          const progressiveBlob = new Blob(contiguous, { type: meta.type || 'application/octet-stream' });
+                          const newLiveUrl = URL.createObjectURL(progressiveBlob);
+                          if (activeLiveUrlRef.current) {
+                            URL.revokeObjectURL(activeLiveUrlRef.current);
+                          }
+                          activeLiveUrlRef.current = newLiveUrl;
+                          setLiveMediaUrl(newLiveUrl);
+                          setIsLiveMediaAvailable(true);
+                        } catch {
+                          // ignore blob creation error
+                        }
+                      }
+                    }
+                  }
                 }
 
                 const meta = fileMetaRef.current;
@@ -590,6 +751,20 @@ export function usePeerConnection({
                     finalizeDownload(meta.name, meta.type);
                   }
                 }
+              } else if (typedData.type === 'swarm-have') {
+                swarmCoordinatorRef.current.updatePeerHave(conn.peer, typedData.chunkIndex);
+                setSwarmStats(swarmCoordinatorRef.current.getSwarmStats());
+              } else if (typedData.type === 'swarm-bitfield') {
+                swarmCoordinatorRef.current.updatePeerBitfield(conn.peer, typedData.bitfield);
+                setSwarmStats(swarmCoordinatorRef.current.getSwarmStats());
+              } else if (typedData.type === 'swarm-peers') {
+                typedData.peers.forEach((pId) => {
+                  if (pId !== peer.id) {
+                    swarmCoordinatorRef.current.addPeer(pId);
+                  }
+                });
+                setPeerCount(swarmCoordinatorRef.current.getPeerCount());
+                setSwarmStats(swarmCoordinatorRef.current.getSwarmStats());
               } else if (typedData.type === 'chat') {
                 if (typedData.encrypted && cryptoKeyRef.current) {
                   try {
@@ -689,7 +864,7 @@ export function usePeerConnection({
     };
   }, [isConnected]);
 
-  // Clean up PeerJS instances on unmount
+  // Clean up PeerJS instances and progressive stream URLs on unmount
   useEffect(() => {
     return () => {
       resetConnection();
@@ -721,6 +896,10 @@ export function usePeerConnection({
     setShowQR,
     expirationSec,
     setExpirationSec,
+    liveMediaUrl,
+    isLiveMediaAvailable,
+    swarmStats,
+    multiConnsRef,
     handleBurnOnDownload,
     initSender,
     connectAsReceiver,

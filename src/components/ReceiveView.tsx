@@ -28,7 +28,10 @@ import { formatBytes, saveFile, parseRoomCode } from '../lib/utils';
 import { DANGEROUS_EXTENSIONS } from '../lib/constants';
 import { inspectFileSafety } from '../lib/sandboxInspector';
 import { saveToMemoryVault } from '../lib/memoryVault';
+import { isMediaMimeOrFilename } from '../lib/swarm';
+import { extractFileFromCarrierImage } from '../lib/steganography';
 import TransferProgress from './TransferProgress';
+import MediaPreview from './MediaPreview';
 import type { FileMeta, CompletedFile, ZipEntry } from '../types';
 
 interface ReceiveViewProps {
@@ -50,59 +53,13 @@ interface ReceiveViewProps {
   zipContents: ZipEntry[];
   showZipPreview: boolean;
   setShowZipPreview: (v: boolean) => void;
+  liveMediaUrl?: string | null;
+  isLiveMediaAvailable?: boolean;
   handleBurnOnDownload?: () => void;
   onConnect: (code: string) => void;
   onClose: () => void;
   t: (key: string, params?: Record<string, string | number>) => string;
 }
-
-const MediaPreview = React.memo(function MediaPreview({
-  completedFile,
-}: {
-  completedFile: CompletedFile;
-}) {
-  const mediaUrl = React.useMemo(() => {
-    if (!completedFile) return null;
-    return URL.createObjectURL(completedFile.blob);
-  }, [completedFile]);
-
-  React.useEffect(() => {
-    return () => {
-      if (mediaUrl) URL.revokeObjectURL(mediaUrl);
-    };
-  }, [mediaUrl]);
-
-  if (!mediaUrl) return null;
-
-  if (completedFile.type.startsWith('audio/')) {
-    return (
-      <div className="p-3 bg-black/60 border border-white/10 rounded-2xl max-w-sm mx-auto">
-        <audio controls className="w-full" src={mediaUrl} />
-      </div>
-    );
-  }
-  if (completedFile.type.startsWith('video/')) {
-    return (
-      <div className="p-2 bg-black/60 border border-white/10 rounded-2xl max-w-sm mx-auto overflow-hidden">
-        <video controls className="w-full rounded-xl" src={mediaUrl} />
-      </div>
-    );
-  }
-  if (completedFile.type.startsWith('image/')) {
-    return (
-      <div className="p-2 bg-black/60 border border-white/10 rounded-2xl max-w-sm mx-auto overflow-hidden">
-        <img
-          src={mediaUrl}
-          alt={completedFile?.name ? `Received Encrypted File Preview - ${completedFile.name}` : "Received Encrypted Image Preview"}
-          loading="lazy"
-          decoding="async"
-          className="w-full max-h-60 object-contain rounded-xl"
-        />
-      </div>
-    );
-  }
-  return null;
-});
 
 export const ReceiveView = React.memo(function ReceiveView({
   receiveCode,
@@ -123,6 +80,8 @@ export const ReceiveView = React.memo(function ReceiveView({
   zipContents,
   showZipPreview,
   setShowZipPreview,
+  liveMediaUrl,
+  isLiveMediaAvailable,
   handleBurnOnDownload,
   onConnect,
   onClose,
@@ -137,6 +96,42 @@ export const ReceiveView = React.memo(function ReceiveView({
   } | null>(null);
   const [isCameraPaused, setIsCameraPaused] = React.useState(false);
   const [isInputHighlighted, setIsInputHighlighted] = React.useState(false);
+  const [showLivePreview, setShowLivePreview] = React.useState(false);
+
+  // Steganography Extractor States
+  const [showSteganoExtractor, setShowSteganoExtractor] = React.useState(false);
+  const [stegoExtractPasscode, setStegoExtractPasscode] = React.useState('');
+  const [isExtractingStego, setIsExtractingStego] = React.useState(false);
+  const [extractedStegoFile, setExtractedStegoFile] = React.useState<File | null>(null);
+  const [stegoExtractError, setStegoExtractError] = React.useState<string | null>(null);
+  const stegoExtractInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const handleExtractStego = React.useCallback(async (carrierFile: File) => {
+    setIsExtractingStego(true);
+    setStegoExtractError(null);
+    setExtractedStegoFile(null);
+
+    try {
+      const extracted = await extractFileFromCarrierImage(
+        carrierFile,
+        stegoExtractPasscode.trim() || undefined
+      );
+
+      if (extracted) {
+        const file = new File([extracted.data], extracted.name, {
+          type: extracted.type,
+        });
+        setExtractedStegoFile(file);
+      } else {
+        setStegoExtractError(t('stegoNotFound'));
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setStegoExtractError(message);
+    } finally {
+      setIsExtractingStego(false);
+    }
+  }, [stegoExtractPasscode, t]);
 
   React.useEffect(() => {
     if (showQRScanner) {
@@ -310,7 +305,126 @@ export const ReceiveView = React.memo(function ReceiveView({
               >
                 {t('connect')}
               </button>
+
+              <div className="pt-1 flex items-center justify-center">
+                <button
+                  type="button"
+                  onClick={() => setShowSteganoExtractor(!showSteganoExtractor)}
+                  className="text-xs text-pink-400/80 hover:text-pink-300 flex items-center gap-1.5 font-mono py-1.5 px-3 rounded-xl hover:bg-pink-500/10 transition-all border border-pink-500/20 cursor-pointer"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>{t('stegoExtract')}</span>
+                </button>
+              </div>
             </form>
+
+            {/* Steganography Extractor Modal */}
+            <AnimatePresence>
+              {showSteganoExtractor && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mt-4 p-5 bg-black/75 border border-pink-500/40 rounded-2xl space-y-3.5 shadow-xl shadow-pink-500/10 text-left"
+                >
+                  <input
+                    ref={stegoExtractInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        handleExtractStego(e.target.files[0]);
+                        e.target.value = '';
+                      }
+                    }}
+                  />
+                  <div className="flex items-center justify-between border-b border-pink-500/20 pb-2">
+                    <span className="text-xs font-bold text-pink-300 flex items-center gap-2">
+                      <Eye className="w-4 h-4 text-pink-400" />
+                      {t('stegoModalTitle')}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowSteganoExtractor(false)}
+                      className="text-slate-400 hover:text-white p-1 rounded-lg"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Optional Passcode Input */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-mono text-slate-400 block">
+                      {t('stegoPasscode')}
+                    </label>
+                    <input
+                      type="password"
+                      value={stegoExtractPasscode}
+                      onChange={(e) => setStegoExtractPasscode(e.target.value)}
+                      placeholder="Optional PIN / Passcode"
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-pink-500/50"
+                    />
+                  </div>
+
+                  {/* Dropzone for carrier image */}
+                  <div
+                    onClick={() => stegoExtractInputRef.current?.click()}
+                    className="border-2 border-dashed border-pink-500/30 hover:border-pink-400 p-5 rounded-2xl bg-pink-500/5 hover:bg-pink-500/10 cursor-pointer flex flex-col items-center justify-center text-center transition-colors group"
+                  >
+                    <Eye className="w-7 h-7 text-pink-400 mb-1.5 group-hover:scale-110 transition-transform" />
+                    <span className="text-xs font-bold text-slate-200">{t('stegoExtractDrop')}</span>
+                    <span className="text-[10px] text-slate-400 mt-0.5">PNG / JPEG / WebP</span>
+                  </div>
+
+                  {isExtractingStego && (
+                    <div className="flex items-center justify-center gap-2 text-xs text-pink-400 font-mono py-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Extracting and decrypting hidden payload...</span>
+                    </div>
+                  )}
+
+                  {stegoExtractError && (
+                    <div className="text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 p-2.5 rounded-xl">
+                      {stegoExtractError}
+                    </div>
+                  )}
+
+                  {extractedStegoFile && (
+                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-emerald-300 truncate">
+                          ✔ {extractedStegoFile.name} ({formatBytes(extractedStegoFile.size)})
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">
+                          Decrypted
+                        </span>
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => saveFile(extractedStegoFile, extractedStegoFile.name)}
+                          className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-white font-bold py-2 px-3 rounded-lg text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5" /> {t('save')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await saveToMemoryVault(extractedStegoFile, extractedStegoFile.name, extractedStegoFile.type);
+                            alert(t('memoryVaultAlert'));
+                          }}
+                          className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                          title={t('memoryVaultSave')}
+                        >
+                          <Database className="w-3.5 h-3.5 text-cyan-400" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <AnimatePresence>
               {showQRScanner && (
@@ -483,13 +597,55 @@ export const ReceiveView = React.memo(function ReceiveView({
             )}
 
             {fileMeta && transferProgress >= 0 && transferProgress < 100 && (
-              <TransferProgress
-                progress={transferProgress}
-                speed={transferSpeed}
-                eta={transferETA}
-                label={transferProgress > 0 ? (t('transferring') || 'Transferring encrypted payload...') : `${t('connectingToSender')} 🔐`}
-                colorClass="cyan"
-              />
+              <div className="w-full space-y-4">
+                <TransferProgress
+                  progress={transferProgress}
+                  speed={transferSpeed}
+                  eta={transferETA}
+                  label={transferProgress > 0 ? (t('transferring') || 'Transferring encrypted payload...') : `${t('connectingToSender')} 🔐`}
+                  colorClass="cyan"
+                />
+
+                {/* Instant In-Browser Progressive Live Media Playback from Chunk 0 */}
+                {(isLiveMediaAvailable || isMediaMimeOrFilename(fileMeta.type, fileMeta.name).isMedia) && (
+                  <div className="w-full max-w-sm mx-auto pt-1">
+                    {!showLivePreview ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowLivePreview(true)}
+                        className="w-full py-2.5 px-4 bg-gradient-to-r from-purple-600/30 via-indigo-600/30 to-purple-600/30 hover:from-purple-600/50 hover:to-indigo-600/50 border border-purple-500/40 hover:border-purple-500/60 rounded-xl text-purple-300 hover:text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-purple-500/10 cursor-pointer group"
+                      >
+                        <Play className="w-4 h-4 text-purple-400 group-hover:scale-110 fill-current transition-transform" />
+                        <span>▶ Live Preview (Instant Playback from Chunk 0)</span>
+                        <Radio className="w-3.5 h-3.5 text-purple-400 animate-pulse ml-auto" />
+                      </button>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between px-1">
+                          <span className="text-[11px] font-mono text-purple-400 font-bold flex items-center gap-1.5">
+                            <Radio className="w-3.5 h-3.5 animate-pulse" />
+                            Live Stream Active
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setShowLivePreview(false)}
+                            className="text-[10px] font-mono text-slate-400 hover:text-white underline cursor-pointer"
+                          >
+                            Hide Stream
+                          </button>
+                        </div>
+                        <MediaPreview
+                          liveMediaUrl={liveMediaUrl}
+                          fileMeta={fileMeta}
+                          transferProgress={transferProgress}
+                          isLive={true}
+                          t={t}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
 
             {transferProgress >= 100 && completedFile && (
