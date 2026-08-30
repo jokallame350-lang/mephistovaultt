@@ -9,7 +9,8 @@ export type PeerMessage =
   | { type: 'chunk'; buffer: ArrayBuffer; offset: number }
   | { type: 'request-metadata' }
   | { type: 'request-chunk'; offset: number }
-  | { type: 'chat'; text?: string; encrypted?: ArrayBuffer };
+  | { type: 'chat'; text?: string; encrypted?: ArrayBuffer }
+  | { type: 'burn' };
 
 // ── Lobby / Discovery Messages ──
 export type LobbyMessage =

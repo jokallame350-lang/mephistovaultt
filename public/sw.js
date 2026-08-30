@@ -21,7 +21,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) return caches.delete(key);
+          if (key !== CACHE_NAME && key !== 'mephistovault-shares') return caches.delete(key);
         })
       );
     })
@@ -32,6 +32,58 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
+
+  // Handle Web Share Target POST request
+  if (req.method === 'POST' && url.pathname === '/share-target') {
+    event.respondWith(
+      (async () => {
+        try {
+          const formData = await req.formData();
+          const files = formData.getAll('files');
+          const title = formData.get('title') || '';
+          const text = formData.get('text') || '';
+          const shareUrl = formData.get('url') || '';
+
+          const cache = await caches.open('mephistovault-shares');
+          const shareData = {
+            title,
+            text,
+            url: shareUrl,
+            hasFiles: files.length > 0,
+            fileCount: files.length,
+            timestamp: Date.now()
+          };
+          await cache.put(
+            new Request('/shared-meta'),
+            new Response(JSON.stringify(shareData), {
+              headers: { 'Content-Type': 'application/json' }
+            })
+          );
+
+          for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            if (file && typeof file.arrayBuffer === 'function') {
+              const fileBuffer = await file.arrayBuffer();
+              await cache.put(
+                new Request(`/shared-file-${i}`),
+                new Response(fileBuffer, {
+                  headers: {
+                    'Content-Type': file.type || 'application/octet-stream',
+                    'X-File-Name': encodeURIComponent(file.name || `shared-file-${i}`),
+                    'X-File-Type': file.type || 'application/octet-stream'
+                  }
+                })
+              );
+            }
+          }
+          return Response.redirect('/?shared=true', 303);
+        } catch {
+          return Response.redirect('/', 303);
+        }
+      })()
+    );
+    return;
+  }
 
   // Only handle standard HTTP/HTTPS GET requests on same-origin assets
   if (!url.protocol.startsWith('http') || req.method !== 'GET') return;
@@ -90,10 +142,7 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(() => {
-          return new Response('Network error occurred while fetching resource.', {
-            status: 504,
-            statusText: 'Gateway Timeout'
-          });
+          return caches.match(req);
         });
     })
   );

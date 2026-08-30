@@ -101,17 +101,63 @@ export function App() {
 
   const processFiles = fileHandler.processFiles;
 
-  // Web Share Target API: Parse shared text or link from mobile share menu
+  // Web Share Target API: Parse shared files, images, text, or links from mobile share menu
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const sharedText = params.get('text') || params.get('title') || params.get('url');
-    if (sharedText) {
-      const blob = new Blob([sharedText], { type: 'text/plain;charset=utf-8' });
-      const sharedFile = new File([blob], `shared-note-${Date.now().toString().slice(-4)}.txt`, { type: 'text/plain' });
-      processFiles([sharedFile]);
-      setPeerMode('send');
-      window.history.replaceState({}, '', window.location.pathname);
-    }
+    const handleSharedContent = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const isSharedPwa = params.get('shared') === 'true';
+
+      if (isSharedPwa && 'caches' in window) {
+        try {
+          const cache = await caches.open('mephistovault-shares');
+          const metaRes = await cache.match('/shared-meta');
+          if (metaRes) {
+            const meta = await metaRes.json();
+            const retrievedFiles: File[] = [];
+
+            let index = 0;
+            while (true) {
+              const fileRes = await cache.match(`/shared-file-${index}`);
+              if (!fileRes) break;
+              const fileBlob = await fileRes.blob();
+              const fileName = decodeURIComponent(fileRes.headers.get('X-File-Name') || `shared-file-${index}`);
+              const fileType = fileRes.headers.get('X-File-Type') || fileBlob.type;
+              retrievedFiles.push(new File([fileBlob], fileName, { type: fileType }));
+              await cache.delete(`/shared-file-${index}`);
+              index++;
+            }
+
+            await cache.delete('/shared-meta');
+
+            if (retrievedFiles.length > 0) {
+              processFiles(retrievedFiles);
+              setPeerMode('send');
+            } else if (meta.text || meta.url || meta.title) {
+              const sharedText = meta.text || meta.url || meta.title;
+              const blob = new Blob([sharedText], { type: 'text/plain;charset=utf-8' });
+              const sharedFile = new File([blob], `shared-note-${Date.now().toString().slice(-4)}.txt`, { type: 'text/plain' });
+              processFiles([sharedFile]);
+              setPeerMode('send');
+            }
+          }
+        } catch {
+          // ignore
+        }
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+
+      // Direct URL query params fallback for text/links
+      const sharedText = params.get('text') || params.get('title') || params.get('url');
+      if (sharedText) {
+        const blob = new Blob([sharedText], { type: 'text/plain;charset=utf-8' });
+        const sharedFile = new File([blob], `shared-note-${Date.now().toString().slice(-4)}.txt`, { type: 'text/plain' });
+        processFiles([sharedFile]);
+        setPeerMode('send');
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    };
+
+    handleSharedContent();
   }, [processFiles, setPeerMode]);
 
   // Keep ref in sync with state

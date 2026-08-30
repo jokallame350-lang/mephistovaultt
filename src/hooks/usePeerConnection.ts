@@ -179,13 +179,44 @@ export function usePeerConnection({
     lastSpeedCalcRef.current = { time: 0, bytes: 0 };
   }, [clearChatMessages]);
 
+  const broadcastToAll = useCallback(
+    async (msg: PeerMessage) => {
+      let finalMsg = msg;
+      // Automatically encrypt text chat messages if key is available
+      if (msg.type === 'chat' && msg.text && cryptoKeyRef.current) {
+        try {
+          const encryptedBuf = await encryptChatMessage(msg.text, cryptoKeyRef.current);
+          finalMsg = { type: 'chat', encrypted: encryptedBuf };
+        } catch {
+          finalMsg = msg;
+        }
+      }
+
+      if (mode === 'send') {
+        multiConnsRef.current.forEach((c) => {
+          try {
+            if (c.open) c.send(finalMsg);
+          } catch {
+            // ignore
+          }
+        });
+      } else if (connRef.current?.open) {
+        connRef.current.send(finalMsg);
+      }
+    },
+    [mode],
+  );
+
   const handleBurnOnDownload = useCallback(() => {
     if (expirationSec === 0) {
+      // Mutual Burn on Read: send burn signal to sender so both sides destroy memory & session
+      broadcastToAll({ type: 'burn' });
       setTimeout(() => {
         resetConnection();
+        setMode('idle');
       }, 1500);
     }
-  }, [expirationSec, resetConnection]);
+  }, [expirationSec, broadcastToAll, resetConnection]);
 
   const finalizeDownload = useCallback(async (name: string, type: string) => {
     const blob = new Blob(receivedChunksRef.current, { type: type || 'application/octet-stream' });
@@ -352,6 +383,13 @@ export function usePeerConnection({
           } else if (typedData.text) {
             onChatMessage(typedData.text);
           }
+        } else if (typedData.type === 'burn') {
+          // Mutual Burn on Read: destroy sender memory and reset to idle
+          if (fileToShareRef.current) {
+            fileToShareRef.current = null;
+          }
+          resetConnection();
+          setMode('idle');
         }
       });
 
@@ -563,6 +601,10 @@ export function usePeerConnection({
                 } else if (typedData.text) {
                   onChatMessage(typedData.text);
                 }
+              } else if (typedData.type === 'burn') {
+                // Mutual Burn on Read: destroy receiver session
+                resetConnection();
+                setMode('idle');
               }
             } catch (err: unknown) {
               const message = err instanceof Error ? err.message : String(err);
@@ -628,34 +670,6 @@ export function usePeerConnection({
       peerRef.current = peer;
     },
     [receiveCode, resetConnection, finalizeDownload, calculateSpeedAndETA, onChatMessage, t],
-  );
-
-  const broadcastToAll = useCallback(
-    async (msg: PeerMessage) => {
-      let finalMsg = msg;
-      // Automatically encrypt text chat messages if key is available
-      if (msg.type === 'chat' && msg.text && cryptoKeyRef.current) {
-        try {
-          const encryptedBuf = await encryptChatMessage(msg.text, cryptoKeyRef.current);
-          finalMsg = { type: 'chat', encrypted: encryptedBuf };
-        } catch {
-          finalMsg = msg;
-        }
-      }
-
-      if (mode === 'send') {
-        multiConnsRef.current.forEach((c) => {
-          try {
-            if (c.open) c.send(finalMsg);
-          } catch {
-            // ignore
-          }
-        });
-      } else if (connRef.current?.open) {
-        connRef.current.send(finalMsg);
-      }
-    },
-    [mode],
   );
 
   // Connection timer
