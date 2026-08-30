@@ -487,7 +487,7 @@ export const ReceiveView = React.memo(function ReceiveView({
                 progress={transferProgress}
                 speed={transferSpeed}
                 eta={transferETA}
-                label={`${t('connectingToSender')} 🔐`}
+                label={transferProgress > 0 ? (t('transferring') || 'Transferring encrypted payload...') : `${t('connectingToSender')} 🔐`}
                 colorClass="cyan"
               />
             )}

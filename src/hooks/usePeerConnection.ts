@@ -61,6 +61,8 @@ export function usePeerConnection({
   const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cryptoKeyRef = useRef<CryptoKey | null>(null);
   const keyDerivationPromiseRef = useRef<Promise<CryptoKey> | null>(null);
+  const activeShareCodeRef = useRef('');
+  const activeReceiveCodeRef = useRef('');
   const transferCompletedRef = useRef(false);
   const smoothedSpeedRef = useRef(0);
 
@@ -105,6 +107,8 @@ export function usePeerConnection({
     clearKeyCache();
     cryptoKeyRef.current = null;
     keyDerivationPromiseRef.current = null;
+    activeShareCodeRef.current = '';
+    activeReceiveCodeRef.current = '';
     transferCompletedRef.current = false;
 
     if (connRef.current) {
@@ -202,9 +206,10 @@ export function usePeerConnection({
         const buffer = await slice.arrayBuffer();
 
         // AES-256-GCM Key derivation (memoized)
-        if (!cryptoKeyRef.current && shareCode) {
+        const currentCode = activeShareCodeRef.current || shareCode;
+        if (!cryptoKeyRef.current && currentCode) {
           if (!keyDerivationPromiseRef.current) {
-            keyDerivationPromiseRef.current = deriveKey(shareCode);
+            keyDerivationPromiseRef.current = deriveKey(currentCode);
           }
           cryptoKeyRef.current = await keyDerivationPromiseRef.current;
         }
@@ -247,6 +252,13 @@ export function usePeerConnection({
     const code = codeToInit || shareCode;
     if (!code || !code.trim()) return;
 
+    activeShareCodeRef.current = code;
+    // Pre-derive key immediately on sender initialization
+    keyDerivationPromiseRef.current = deriveKey(code);
+    keyDerivationPromiseRef.current.then((key) => {
+      cryptoKeyRef.current = key;
+    }).catch(() => {});
+
     const rawRoom = code.split('#')[0] || '';
     const cleanCode = rawRoom.replace(/[^a-z0-9]/gi, '').toLowerCase();
     if (!cleanCode || cleanCode.length < 3) {
@@ -254,6 +266,7 @@ export function usePeerConnection({
     }
 
     resetConnection();
+    activeShareCodeRef.current = code;
     setErrorStatus(null);
 
     const peerId = `${PEER_ID_PREFIX}${cleanCode}`;
@@ -338,8 +351,15 @@ export function usePeerConnection({
       resetConnection();
       setMode('receive');
       setReceiveCode(sanitizedCode);
+      activeReceiveCodeRef.current = sanitizedCode;
       setErrorStatus(null);
       setTransferProgress(0);
+
+      // Pre-warm key derivation for receiver immediately
+      keyDerivationPromiseRef.current = deriveKey(sanitizedCode);
+      keyDerivationPromiseRef.current.then((key) => {
+        cryptoKeyRef.current = key;
+      }).catch(() => {});
 
       const targetPeerId = `${PEER_ID_PREFIX}${cleanCode}`;
       const peer = new Peer(PEER_CONFIG);
@@ -364,7 +384,6 @@ export function usePeerConnection({
               connectTimeoutRef.current = null;
             }
 
-            // Derive key once on connection initialization
             try {
               if (!keyDerivationPromiseRef.current) {
                 keyDerivationPromiseRef.current = deriveKey(sanitizedCode);
