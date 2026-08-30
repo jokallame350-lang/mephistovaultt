@@ -437,7 +437,7 @@ export function App() {
                     : 'bg-slate-900/60 border-white/10 text-slate-400 hover:text-white'
                 }`}
               >
-                ☁️ {t('createVaultButton') || 'Create Vault'}
+                {t('createVaultButton') || '☁️ Create Vault'}
               </button>
               <button
                 type="button"
