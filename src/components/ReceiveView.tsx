@@ -24,6 +24,7 @@ import {
   Keyboard,
   ShieldCheck,
   FolderTree,
+  Zap,
 } from 'lucide-react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { formatBytes, saveFile, parseRoomCode } from '../lib/utils';
@@ -37,7 +38,9 @@ import MediaPreview from './MediaPreview';
 import FolderTreeModal from './FolderTreeModal';
 import MediaRecorderModal from './MediaRecorderModal';
 import CertificateModal from './CertificateModal';
+import LiveSyncTable from './LiveSyncTable';
 import { generateDeliveryCertificate, type DeliveryCertificate } from '../lib/certificate';
+import type { LiveSyncManager } from '../lib/liveSync';
 import type { FileMeta, CompletedFile, ZipEntry, FileWithCustomPath } from '../types';
 
 interface ReceiveViewProps {
@@ -64,6 +67,13 @@ interface ReceiveViewProps {
   handleBurnOnDownload?: () => void;
   onConnect: (code: string) => void;
   onClose: () => void;
+  liveSyncManager?: LiveSyncManager;
+  compressionStats?: {
+    isCompressed: boolean;
+    originalBytes: number;
+    compressedBytes: number;
+    savingsRatio: number;
+  };
   t: (key: string, params?: Record<string, string | number>) => string;
 }
 
@@ -91,6 +101,8 @@ export const ReceiveView = React.memo(function ReceiveView({
   handleBurnOnDownload,
   onConnect,
   onClose,
+  liveSyncManager,
+  compressionStats,
   t,
 }: ReceiveViewProps) {
   const isScanningRef = React.useRef(false);
@@ -106,6 +118,7 @@ export const ReceiveView = React.memo(function ReceiveView({
   const [showFolderTreeModal, setShowFolderTreeModal] = React.useState(false);
   const [showMediaRecorderModal, setShowMediaRecorderModal] = React.useState(false);
   const [showCertificateModal, setShowCertificateModal] = React.useState(false);
+  const [showLiveSyncModal, setShowLiveSyncModal] = React.useState(false);
   const [deliveryCert, setDeliveryCert] = React.useState<DeliveryCertificate | null>(null);
 
   // Steganography Extractor States
@@ -316,7 +329,18 @@ export const ReceiveView = React.memo(function ReceiveView({
                 {t('connect')}
               </button>
 
-              <div className="pt-1 flex items-center justify-center">
+              <div className="pt-1 flex items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowLiveSyncModal(!showLiveSyncModal)}
+                  className="text-xs text-cyan-400/80 hover:text-cyan-300 flex items-center gap-1.5 font-mono py-1.5 px-3 rounded-xl hover:bg-cyan-500/10 transition-all border border-cyan-500/20 cursor-pointer"
+                  title={t('liveSyncDesc')}
+                  aria-label={t('liveSync')}
+                >
+                  <Zap className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+                  <span>{t('liveSync')}</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setShowSteganoExtractor(!showSteganoExtractor)}
@@ -594,6 +618,23 @@ export const ReceiveView = React.memo(function ReceiveView({
                       <p className="font-bold text-amber-300">{t('dangerousExtWarning')}</p>
                       <p className="text-slate-400 mt-0.5">{t('dangerousExtDesc')}</p>
                     </div>
+                  </div>
+                )}
+                {/* Stream Compression Active Banner */}
+                {compressionStats?.isCompressed && (
+                  <div className="flex items-center justify-between p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs font-mono text-emerald-300">
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-emerald-400 animate-pulse" />
+                      <span>{t('compressionActive', { ratio: compressionStats.savingsRatio || 65 })}</span>
+                    </div>
+                    {compressionStats.originalBytes > compressionStats.compressedBytes && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                        {t('compressionSaved', {
+                          saved: formatBytes(compressionStats.originalBytes - compressionStats.compressedBytes),
+                          ratio: compressionStats.savingsRatio || 65,
+                        })}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
@@ -927,6 +968,35 @@ export const ReceiveView = React.memo(function ReceiveView({
             onClose={() => setShowCertificateModal(false)}
             t={t}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Two-Way Live Sync Table Modal */}
+      <AnimatePresence>
+        {showLiveSyncModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md"
+            onClick={() => setShowLiveSyncModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <LiveSyncTable
+                manager={liveSyncManager}
+                localPeerId={receiveCode ? `receiver-${receiveCode.split('#')[0]}` : 'receiver-node'}
+                isConnected={isConnected}
+                onClose={() => setShowLiveSyncModal(false)}
+                t={t}
+              />
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </motion.div>

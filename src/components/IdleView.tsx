@@ -110,6 +110,15 @@ export const IdleView = React.memo(function IdleView({
       <section aria-label="Quick Action Tools" className="flex flex-wrap items-center justify-center gap-2.5 p-3 rounded-2xl bg-white/[0.02] border border-white/5">
         <button
           onClick={() => setMode('send')}
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/20 transition-all text-xs font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+          aria-label={t('liveSync')}
+          title={t('liveSyncDesc')}
+        >
+          <Zap className="w-4 h-4 text-cyan-400 animate-pulse" />
+          <span>{t('liveSync')}</span>
+        </button>
+        <button
+          onClick={() => setMode('send')}
           className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/20 transition-all text-xs font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50"
           aria-label={t('quickText')}
         >

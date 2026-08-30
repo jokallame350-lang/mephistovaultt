@@ -405,6 +405,8 @@ export function App() {
               onCopy={handleCopyLink}
               onDownloadQR={handleDownloadQR}
               onClose={handleSendClose}
+              liveSyncManager={peer.liveSyncManager}
+              compressionStats={peer.compressionStats}
               t={t}
             />
           )}
@@ -434,6 +436,8 @@ export function App() {
               handleBurnOnDownload={peer.handleBurnOnDownload}
               onConnect={peer.connectAsReceiver}
               onClose={handleReceiveClose}
+              liveSyncManager={peer.liveSyncManager}
+              compressionStats={peer.compressionStats}
               t={t}
             />
           )}

@@ -34,6 +34,8 @@ import {
   ShieldCheck,
   FolderTree,
   Mic,
+  Sparkles,
+  Zap,
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { formatBytes } from '../lib/utils';
@@ -43,7 +45,10 @@ import TransferProgress from './TransferProgress';
 import FolderTreeModal from './FolderTreeModal';
 import MediaRecorderModal from './MediaRecorderModal';
 import CertificateModal from './CertificateModal';
+import LiveSyncTable from './LiveSyncTable';
 import { generateDeliveryCertificate, type DeliveryCertificate } from '../lib/certificate';
+import { isCompressibleFileType } from '../lib/compression';
+import type { LiveSyncManager } from '../lib/liveSync';
 import type { FileWithCustomPath } from '../types';
 
 interface SendViewProps {
@@ -80,6 +85,13 @@ interface SendViewProps {
   onCopy: () => void;
   onDownloadQR: () => void;
   onClose: () => void;
+  liveSyncManager?: LiveSyncManager;
+  compressionStats?: {
+    isCompressed: boolean;
+    originalBytes: number;
+    compressedBytes: number;
+    savingsRatio: number;
+  };
   t: (key: string, params?: Record<string, string | number>) => string;
 }
 
@@ -177,6 +189,8 @@ export const SendView = React.memo(function SendView({
   onCopy,
   onDownloadQR,
   onClose,
+  liveSyncManager,
+  compressionStats,
   t,
 }: SendViewProps) {
   const [showQuickTextModal, setShowQuickTextModal] = useState(false);
@@ -185,6 +199,7 @@ export const SendView = React.memo(function SendView({
   const [showFolderTreeModal, setShowFolderTreeModal] = useState(false);
   const [showMediaRecorderModal, setShowMediaRecorderModal] = useState(false);
   const [showCertificateModal, setShowCertificateModal] = useState(false);
+  const [showLiveSyncModal, setShowLiveSyncModal] = useState(false);
   const [deliveryCert, setDeliveryCert] = useState<DeliveryCertificate | null>(null);
 
   // Steganography embedding states
@@ -447,6 +462,16 @@ export const SendView = React.memo(function SendView({
               <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
                 <button
                   type="button"
+                  onClick={() => setShowLiveSyncModal(true)}
+                  className="flex items-center gap-2 px-3.5 py-2 bg-white/5 hover:bg-cyan-500/20 border border-white/10 hover:border-cyan-500/30 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                  title={t('liveSyncDesc')}
+                  aria-label={t('liveSync')}
+                >
+                  <Zap className="w-4 h-4 text-cyan-400 animate-pulse" /> <span>{t('liveSync')}</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => fileInputRef.current?.click()}
                   className="flex items-center gap-2 px-3.5 py-2 bg-white/5 hover:bg-emerald-500/20 border border-white/10 hover:border-emerald-500/30 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                   aria-label="Select files to send"
@@ -510,6 +535,26 @@ export const SendView = React.memo(function SendView({
                   aria-label={t('recordMediaTitle') || 'Record Media'}
                 >
                   <Mic className="w-4 h-4 text-purple-400" /> <span>{t('recordMediaBtn') || 'Record'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowLiveSyncModal(true)}
+                  className="flex items-center gap-2 px-3.5 py-2 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 hover:border-cyan-400/50 rounded-xl text-xs font-bold text-cyan-300 hover:text-white transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                  title="Open Live Sync Table"
+                  aria-label="Open Live Sync Table"
+                >
+                  <Sparkles className="w-4 h-4 text-cyan-400 animate-pulse" /> <span>Live Workspace</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowLiveSyncModal(true)}
+                  className="flex items-center gap-2 px-3.5 py-2 bg-white/5 hover:bg-emerald-500/20 border border-white/10 hover:border-emerald-500/30 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  title={t('twoWaySyncTitle') || 'Live Sync Table'}
+                  aria-label={t('twoWaySyncTitle') || 'Live Sync Table'}
+                >
+                  <Layers className="w-4 h-4 text-emerald-400" /> <span>{t('twoWaySyncTitle') || 'Live Table'}</span>
                 </button>
               </div>
 
@@ -927,6 +972,29 @@ export const SendView = React.memo(function SendView({
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30">
                         {t('streamLive')}
                       </span>
+                    </div>
+                  );
+                })()}
+
+                {/* Stream Compression Active Banner */}
+                {(() => {
+                  const singleFile = effectiveFiles[0] || fileToShare;
+                  const isCompressible = singleFile && isCompressibleFileType(singleFile.type, singleFile.name);
+                  const isCompressionRunning = compressionStats?.isCompressed;
+                  if (!isCompressible && !isCompressionRunning) return null;
+                  const ratio = compressionStats?.savingsRatio || 65;
+                  const savedBytes = (compressionStats?.originalBytes || 0) - (compressionStats?.compressedBytes || 0);
+                  return (
+                    <div className="flex items-center justify-between p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs font-mono text-emerald-300">
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-emerald-400 animate-pulse" />
+                        <span>{t('compressionActive', { ratio })}</span>
+                      </div>
+                      {savedBytes > 0 && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                          {t('compressionSaved', { saved: formatBytes(savedBytes), ratio })}
+                        </span>
+                      )}
                     </div>
                   );
                 })()}
@@ -1387,6 +1455,35 @@ export const SendView = React.memo(function SendView({
             onClose={() => setShowCertificateModal(false)}
             t={t}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Two-Way Live Sync Table Modal */}
+      <AnimatePresence>
+        {showLiveSyncModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md"
+            onClick={() => setShowLiveSyncModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <LiveSyncTable
+                manager={liveSyncManager}
+                localPeerId={shareCode ? `sender-${shareCode.split('#')[0]}` : 'sender-node'}
+                isConnected={isConnected}
+                onClose={() => setShowLiveSyncModal(false)}
+                t={t}
+              />
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </motion.div>

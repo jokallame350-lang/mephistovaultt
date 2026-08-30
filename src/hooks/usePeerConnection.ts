@@ -24,6 +24,8 @@ import {
 import { formatETA, formatSpeed, parseRoomCode } from '../lib/utils';
 import { playPeerConnectedChime } from '../lib/audioFX';
 import { SwarmCoordinator, isMediaMimeOrFilename } from '../lib/swarm';
+import { isCompressibleFileType, compressData, decompressData } from '../lib/compression';
+import { LiveSyncManager, isLiveSyncMessage, type SyncItem } from '../lib/liveSync';
 import type { FileMeta, CompletedFile, PeerMessage, PeerDataConnectionExt, PeerCustomError, SwarmStats } from '../types';
 
 interface UsePeerConnectionProps {
@@ -61,6 +63,19 @@ export function usePeerConnection({
   const [liveMediaUrl, setLiveMediaUrl] = useState<string | null>(null);
   const [isLiveMediaAvailable, setIsLiveMediaAvailable] = useState(false);
 
+  // Stream Compression Statistics State
+  const [compressionStats, setCompressionStats] = useState<{
+    isCompressed: boolean;
+    originalBytes: number;
+    compressedBytes: number;
+    savingsRatio: number;
+  }>({
+    isCompressed: false,
+    originalBytes: 0,
+    compressedBytes: 0,
+    savingsRatio: 0,
+  });
+
   // Swarm Statistics State
   const [swarmStats, setSwarmStats] = useState<SwarmStats>({
     totalPeers: 0,
@@ -76,6 +91,21 @@ export function usePeerConnection({
   const multiConnsRef = useRef<DataConnection[]>([]);
   const swarmCoordinatorRef = useRef<SwarmCoordinator>(new SwarmCoordinator());
   const activeLiveUrlRef = useRef<string | null>(null);
+
+  // Two-Way Live Sync Manager Ref & State
+  const liveSyncManagerRef = useRef<LiveSyncManager>(
+    new LiveSyncManager({
+      localPeerId: 'mephisto-node',
+    })
+  );
+  const [syncItems, setSyncItems] = useState<SyncItem[]>([]);
+
+  useEffect(() => {
+    const unsub = liveSyncManagerRef.current.subscribe((newItems) => {
+      setSyncItems([...newItems]);
+    });
+    return () => unsub();
+  }, []);
 
   const fileMetaRef = useRef<FileMeta | null>(null);
   const receivedChunksRef = useRef<ArrayBuffer[]>([]);
@@ -191,6 +221,15 @@ export function usePeerConnection({
       connectTimeoutRef.current = null;
     }
 
+    // Reset Stream Compression Stats
+    setCompressionStats({
+      isCompressed: false,
+      originalBytes: 0,
+      compressedBytes: 0,
+      savingsRatio: 0,
+    });
+    liveSyncManagerRef.current.clearWorkspace();
+
     setIsConnected(false);
     setTransferProgress(-1);
     setFileMeta(null);
@@ -295,6 +334,35 @@ export function usePeerConnection({
         const slice = file.slice(offset, end);
         const buffer = await slice.arrayBuffer();
 
+        // Stream Compression: if file is compressible, compress chunk in real-time
+        let bufferToSend = buffer;
+        let isChunkCompressed = false;
+        let chunkRatio = 0;
+
+        if (isCompressibleFileType(file.type, file.name)) {
+          try {
+            const comp = await compressData(buffer, 'deflate');
+            if (comp.compressed) {
+              bufferToSend = comp.buffer;
+              isChunkCompressed = true;
+              chunkRatio = comp.savingsPercent;
+              setCompressionStats((prev) => {
+                const orig = prev.originalBytes + buffer.byteLength;
+                const compB = prev.compressedBytes + comp.compressedSize;
+                const savedRatio = orig > 0 ? Math.round(((orig - compB) / orig) * 100) : 0;
+                return {
+                  isCompressed: true,
+                  originalBytes: orig,
+                  compressedBytes: compB,
+                  savingsRatio: savedRatio,
+                };
+              });
+            }
+          } catch {
+            // fallback
+          }
+        }
+
         // AES-256-GCM Key derivation (memoized)
         const currentCode = activeShareCodeRef.current || shareCode;
         if (!cryptoKeyRef.current && currentCode) {
@@ -305,10 +373,10 @@ export function usePeerConnection({
         }
         if (!cryptoKeyRef.current) return;
 
-        const encrypted = await encryptChunk(buffer, cryptoKeyRef.current);
+        const encrypted = await encryptChunk(bufferToSend, cryptoKeyRef.current);
 
         // WebRTC DataChannel backpressure throttling with drain loop
-        const dataChannel = (conn as PeerDataConnectionExt)._dc || (conn as PeerDataConnectionExt).dataChannel;
+        const dataChannel = (conn as PeerDataConnectionExt)._dc || ((conn as unknown as Record<string, unknown>).dataChannel as RTCDataChannel | undefined);
         while (conn.open && dataChannel && dataChannel.bufferedAmount > BUFFERED_AMOUNT_THRESHOLD) {
           await new Promise((resolve) => setTimeout(resolve, 20));
           if (dataChannel.bufferedAmount <= DRAIN_BUFFER_THRESHOLD) break;
@@ -322,6 +390,9 @@ export function usePeerConnection({
           buffer: encrypted,
           offset: offset,
           chunkIndex,
+          compressed: isChunkCompressed,
+          rawSize: buffer.byteLength,
+          ratio: chunkRatio,
         });
 
         // Record swarm upload stats
@@ -396,6 +467,7 @@ export function usePeerConnection({
       conn.on('open', () => {
         setIsConnected(true);
         playPeerConnectedChime();
+        liveSyncManagerRef.current.addConnection(conn);
 
         // Announce active Swarm peers and local bitfield to new receiver
         try {
@@ -427,6 +499,11 @@ export function usePeerConnection({
       });
 
       conn.on('data', async (data: unknown) => {
+        if (isLiveSyncMessage(data)) {
+          liveSyncManagerRef.current.handlePeerMessage(data, conn);
+          return;
+        }
+
         const typedData = data as PeerMessage;
         if (typedData.type === 'request-metadata') {
           if (fileToShareRef.current) {
@@ -585,6 +662,7 @@ export function usePeerConnection({
             connected = true;
             setIsConnected(true);
             playPeerConnectedChime();
+            liveSyncManagerRef.current.addConnection(conn);
             if (connectTimeoutRef.current) {
               clearTimeout(connectTimeoutRef.current);
               connectTimeoutRef.current = null;
@@ -613,6 +691,11 @@ export function usePeerConnection({
 
           conn.on('data', async (data: unknown) => {
             try {
+              if (isLiveSyncMessage(data)) {
+                liveSyncManagerRef.current.handlePeerMessage(data, conn);
+                return;
+              }
+
               const typedData = data as PeerMessage;
               if (typedData.type === 'metadata') {
                 if (!fileMetaRef.current) {
@@ -676,7 +759,30 @@ export function usePeerConnection({
                 }
 
                 const decrypted = await decryptChunk(buffer, cryptoKeyRef.current);
-                const byteLength = (decrypted as ArrayBuffer).byteLength ?? 0;
+                let rawBuffer: ArrayBuffer = decrypted as ArrayBuffer;
+
+                if (typedData.compressed) {
+                  try {
+                    rawBuffer = await decompressData(decrypted, 'deflate');
+                    const origSize = typedData.rawSize || rawBuffer.byteLength;
+                    const compSize = (decrypted as ArrayBuffer).byteLength;
+                    setCompressionStats((prev) => {
+                      const orig = prev.originalBytes + origSize;
+                      const compB = prev.compressedBytes + compSize;
+                      const savedRatio = orig > 0 ? Math.round(((orig - compB) / orig) * 100) : 0;
+                      return {
+                        isCompressed: true,
+                        originalBytes: orig,
+                        compressedBytes: compB,
+                        savingsRatio: savedRatio,
+                      };
+                    });
+                  } catch {
+                    rawBuffer = decrypted as ArrayBuffer;
+                  }
+                }
+
+                const byteLength = (rawBuffer as ArrayBuffer).byteLength ?? 0;
 
                 if (byteLength === 0) throw new Error('Received chunk has zero length.');
 
@@ -797,6 +903,7 @@ export function usePeerConnection({
           });
 
           conn.on('close', () => {
+            liveSyncManagerRef.current.removeConnection(conn);
             setIsConnected(false);
           });
 
@@ -899,6 +1006,12 @@ export function usePeerConnection({
     liveMediaUrl,
     isLiveMediaAvailable,
     swarmStats,
+    compressionStats,
+    syncItems,
+    liveSyncManager: liveSyncManagerRef.current,
+    addSyncFile: (file: File | Blob) => liveSyncManagerRef.current.addFile(file),
+    removeSyncFile: (id: string) => liveSyncManagerRef.current.removeFile(id),
+    clearSyncWorkspace: () => liveSyncManagerRef.current.clearWorkspace(),
     multiConnsRef,
     handleBurnOnDownload,
     initSender,

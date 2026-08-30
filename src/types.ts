@@ -1,4 +1,6 @@
 import type { DataConnection } from 'peerjs';
+import type { SyncItem, SyncItemStatus, LiveSyncMessage } from './lib/liveSync';
+export type { SyncItem, SyncItemStatus, LiveSyncMessage };
 
 // ── App Mode ──
 export type AppMode = 'idle' | 'send' | 'receive';
@@ -6,7 +8,7 @@ export type AppMode = 'idle' | 'send' | 'receive';
 // ── PeerJS Messages (discriminated union) ──
 export type PeerMessage =
   | { type: 'metadata'; name: string; size: number; mime: string; sha256?: string; expirationSec?: number }
-  | { type: 'chunk'; buffer: ArrayBuffer; offset: number; chunkIndex?: number }
+  | { type: 'chunk'; buffer: ArrayBuffer; offset: number; chunkIndex?: number; compressed?: boolean; rawSize?: number }
   | { type: 'request-metadata' }
   | { type: 'request-chunk'; offset: number; chunkIndex?: number }
   | { type: 'chat'; text?: string; encrypted?: ArrayBuffer }
@@ -14,7 +16,8 @@ export type PeerMessage =
   | { type: 'swarm-have'; chunkIndex: number }
   | { type: 'swarm-bitfield'; bitfield: number[] }
   | { type: 'swarm-peers'; peers: string[] }
-  | { type: 'swarm-request-chunk'; chunkIndex: number };
+  | { type: 'swarm-request-chunk'; chunkIndex: number }
+  | LiveSyncMessage;
 
 // ── Swarm Coordination Types ──
 export interface SwarmPeerInfo {
