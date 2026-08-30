@@ -25,12 +25,12 @@ const NON_COMPRESSIBLE_EXTENSIONS = new Set([
   // Video (excluding .ts/.mts to avoid collision with TypeScript source files)
   'mp4', 'mkv', 'webm', 'avi', 'mov', 'wmv', 'flv', 'm4v', '3gp', '3g2', 'm2ts', 'vob', 'ogv',
   // Compressed archives & packages
-  'zip', 'gz', 'gzip', 'tgz', 'bz2', 'tbz2', 'xz', 'txz', '7z', 'rar', 'zst', 'zstd', 'br', 'apk', 'ipa', 'jar', 'war', 'ear', 'dmg', 'iso', 'img', 'deb', 'rpm', 'pkg', 'cab', 'z',
+  'zip', 'gz', 'gzip', 'tgz', 'bz2', 'tbz2', 'xz', 'txz', '7z', 'rar', 'zst', 'zstd', 'br', 'apk', 'ipa', 'jar', 'war', 'ear', 'dmg', 'iso', 'img', 'deb', 'rpm', 'pkg', 'package', 'cab', 'z', 'tar',
   // Compressed documents / containers
   'pdf', 'docx', 'xlsx', 'pptx', 'odt', 'ods', 'odp', 'epub', 'cbz', 'cbr',
 ]);
 
-/** File extensions that are plain text, code, structured data, or uncompressed archives */
+/** File extensions that are plain text, code, structured data, or uncompressed text sources */
 const COMPRESSIBLE_EXTENSIONS = new Set([
   // Text & Docs
   'txt', 'md', 'markdown', 'mdown', 'mkdn', 'rst', 'adoc', 'asciidoc', 'rtf', 'csv', 'tsv', 'tab', 'log', 'sql', 'dump', 'db', 'conf', 'cfg', 'config', 'ini', 'env', 'properties', 'yaml', 'yml', 'toml', 'tex', 'bib', 'nfo', 'srt', 'vtt',
@@ -38,8 +38,6 @@ const COMPRESSIBLE_EXTENSIONS = new Set([
   'html', 'htm', 'xhtml', 'xml', 'xsl', 'xslt', 'svg', 'css', 'scss', 'sass', 'less', 'styl', 'json', 'json5', 'jsonc', 'geojson', 'proto', 'graphql', 'gql',
   // Code & Scripts
   'js', 'mjs', 'cjs', 'jsx', 'ts', 'mts', 'cts', 'tsx', 'py', 'pyw', 'pyi', 'rb', 'rs', 'go', 'c', 'h', 'cpp', 'hpp', 'cc', 'cxx', 'hxx', 'cs', 'java', 'kt', 'kts', 'swift', 'dart', 'php', 'sh', 'bash', 'zsh', 'fish', 'ps1', 'psm1', 'bat', 'cmd', 'lua', 'pl', 'pm', 'r', 'scala', 'erl', 'ex', 'exs', 'clj', 'cljs', 'cljc', 'zig', 'nim', 'v', 'asm', 's', 'hs', 'lhs', 'sol', 'dockerfile', 'dockerignore', 'gitignore', 'gitattributes', 'editorconfig', 'diff', 'patch', 'cmake', 'makefile', 'mk', 'gradle',
-  // Uncompressed archives
-  'tar',
 ]);
 
 /** Special exact filenames that are compressible */

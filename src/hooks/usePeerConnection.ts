@@ -378,7 +378,7 @@ export function usePeerConnection({
         // WebRTC DataChannel backpressure throttling with drain loop
         const dataChannel = (conn as PeerDataConnectionExt)._dc || ((conn as unknown as Record<string, unknown>).dataChannel as RTCDataChannel | undefined);
         while (conn.open && dataChannel && dataChannel.bufferedAmount > BUFFERED_AMOUNT_THRESHOLD) {
-          await new Promise((resolve) => setTimeout(resolve, 20));
+          await new Promise((resolve) => setTimeout(resolve, 2));
           if (dataChannel.bufferedAmount <= DRAIN_BUFFER_THRESHOLD) break;
         }
 

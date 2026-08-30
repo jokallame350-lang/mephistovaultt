@@ -36,7 +36,7 @@ export function App() {
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [sessionTransfers, setSessionTransfers] = useState(0);
 
-  const t = useCallback((key: string) => getTranslator(lang)(key), [lang]);
+  const t = useCallback((key: string, params?: Record<string, string | number>) => getTranslator(lang)(key, params), [lang]);
 
   // Sync theme to document element
   useEffect(() => {

@@ -38,7 +38,7 @@ describe('Stream Compression Suite (MephistoVault)', () => {
       expect(isCompressibleFileType(undefined, 'server_config.yaml')).toBe(true);
       expect(isCompressibleFileType(undefined, 'app_settings.toml')).toBe(true);
       expect(isCompressibleFileType(undefined, 'system.env')).toBe(true);
-      expect(isCompressibleFileType(undefined, 'archive.tar')).toBe(true);
+      expect(isCompressibleFileType(undefined, 'archive.tar')).toBe(false);
 
       // Code & scripts
       expect(isCompressibleFileType(undefined, 'App.tsx')).toBe(true);

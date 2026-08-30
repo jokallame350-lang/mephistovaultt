@@ -1,8 +1,8 @@
 // ── Transfer & DataChannel ──
 export const CHUNK_SIZE = 256 * 1024;
-export const PIPELINE_WINDOW_SIZE = 32;
-export const BUFFERED_AMOUNT_THRESHOLD = 4 * 1024 * 1024; // 4MB high-water mark
-export const DRAIN_BUFFER_THRESHOLD = 1 * 1024 * 1024; // 1MB low-water mark for backpressure drain
+export const PIPELINE_WINDOW_SIZE = 64;
+export const BUFFERED_AMOUNT_THRESHOLD = 16 * 1024 * 1024; // 16MB high-water mark for high-speed pipelines
+export const DRAIN_BUFFER_THRESHOLD = 4 * 1024 * 1024; // 4MB low-water mark
 export const SELF_DESTRUCT_SEC = 300;
 
 export const DANGEROUS_EXTENSIONS = [
