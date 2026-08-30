@@ -12,7 +12,15 @@ import {
   MAX_CONNECT_ATTEMPTS,
   PEER_ID_PREFIX,
 } from '../lib/constants';
-import { deriveKey, encryptChunk, decryptChunk, clearKeyCache, calculateSHA256 } from '../lib/encryption';
+import {
+  deriveKey,
+  encryptChunk,
+  decryptChunk,
+  clearKeyCache,
+  calculateSHA256,
+  encryptChatMessage,
+  decryptChatMessage,
+} from '../lib/encryption';
 import { formatETA, formatSpeed, parseRoomCode } from '../lib/utils';
 import { playPeerConnectedChime } from '../lib/audioFX';
 import type { FileMeta, CompletedFile, PeerMessage, PeerDataConnectionExt, PeerCustomError } from '../types';
@@ -63,6 +71,7 @@ export function usePeerConnection({
   const keyDerivationPromiseRef = useRef<Promise<CryptoKey> | null>(null);
   const activeShareCodeRef = useRef('');
   const activeReceiveCodeRef = useRef('');
+  const fileSha256CacheRef = useRef<string | null>(null);
   const transferCompletedRef = useRef(false);
   const smoothedSpeedRef = useRef(0);
 
@@ -109,6 +118,7 @@ export function usePeerConnection({
     keyDerivationPromiseRef.current = null;
     activeShareCodeRef.current = '';
     activeReceiveCodeRef.current = '';
+    fileSha256CacheRef.current = null;
     transferCompletedRef.current = false;
 
     if (connRef.current) {
@@ -181,15 +191,27 @@ export function usePeerConnection({
     const blob = new Blob(receivedChunksRef.current, { type: type || 'application/octet-stream' });
     receivedChunksRef.current = []; // Free ArrayBuffers memory
 
-    // Verify SHA-256 checksum on assembled blob
+    let calculatedHash = '';
+    let isShaVerified = true;
+    const expectedHash = fileMetaRef.current?.sha256;
+
     try {
       const buffer = await blob.arrayBuffer();
-      await calculateSHA256(buffer);
+      calculatedHash = await calculateSHA256(buffer);
+      if (expectedHash && calculatedHash.toLowerCase() !== expectedHash.toLowerCase()) {
+        isShaVerified = false;
+      }
     } catch {
       // ignore
     }
 
-    setCompletedFile({ blob, name, type });
+    setCompletedFile({
+      blob,
+      name,
+      type,
+      sha256: calculatedHash || expectedHash,
+      isShaVerified,
+    });
     setTransferProgress(100);
     onTransferComplete();
   }, [onTransferComplete]);
@@ -259,6 +281,15 @@ export function usePeerConnection({
       cryptoKeyRef.current = key;
     }).catch(() => {});
 
+    // Pre-compute SHA-256 checksum of file for E2E integrity
+    if (fileToShareRef.current && !fileSha256CacheRef.current) {
+      fileToShareRef.current.arrayBuffer().then((buf) => {
+        return calculateSHA256(buf);
+      }).then((hash) => {
+        fileSha256CacheRef.current = hash;
+      }).catch(() => {});
+    }
+
     const rawRoom = code.split('#')[0] || '';
     const cleanCode = rawRoom.replace(/[^a-z0-9]/gi, '').toLowerCase();
     if (!cleanCode || cleanCode.length < 3) {
@@ -284,22 +315,43 @@ export function usePeerConnection({
         playPeerConnectedChime();
       });
 
-      conn.on('data', (data: unknown) => {
+      conn.on('data', async (data: unknown) => {
         const typedData = data as PeerMessage;
         if (typedData.type === 'request-metadata') {
           if (fileToShareRef.current) {
+            let sha = fileSha256CacheRef.current;
+            if (!sha) {
+              try {
+                const buf = await fileToShareRef.current.arrayBuffer();
+                sha = await calculateSHA256(buf);
+                fileSha256CacheRef.current = sha;
+              } catch {
+                // ignore
+              }
+            }
             conn.send({
               type: 'metadata',
               name: fileToShareRef.current.name,
               size: fileToShareRef.current.size,
               mime: fileToShareRef.current.type,
+              sha256: sha || undefined,
+              expirationSec,
             });
           }
         } else if (typedData.type === 'request-chunk') {
           if (typedData.offset === 0) lastSpeedCalcRef.current = { time: Date.now(), bytes: 0 };
           sendChunk(typedData.offset, conn);
         } else if (typedData.type === 'chat') {
-          onChatMessage(typedData.text);
+          if (typedData.encrypted && cryptoKeyRef.current) {
+            try {
+              const text = await decryptChatMessage(typedData.encrypted, cryptoKeyRef.current);
+              onChatMessage(text);
+            } catch {
+              // fallback
+            }
+          } else if (typedData.text) {
+            onChatMessage(typedData.text);
+          }
         }
       });
 
@@ -333,7 +385,7 @@ export function usePeerConnection({
     });
 
     peerRef.current = peer;
-  }, [shareCode, resetConnection, fileToShareRef, sendChunk, onChatMessage, mode, t]);
+  }, [shareCode, resetConnection, fileToShareRef, sendChunk, onChatMessage, mode, expirationSec, t]);
 
   const connectAsReceiver = useCallback(
     (codeToConnect?: string) => {
@@ -348,12 +400,20 @@ export function usePeerConnection({
         return;
       }
 
-      resetConnection();
+      // Preserve existing progress if reconnecting to the same room
+      const isReconnecting = activeReceiveCodeRef.current === sanitizedCode && receivedBytesRef.current > 0;
+      if (!isReconnecting) {
+        resetConnection();
+        setTransferProgress(0);
+        receivedChunksRef.current = [];
+        receivedBytesRef.current = 0;
+        requestedOffsetRef.current = 0;
+      }
+
       setMode('receive');
       setReceiveCode(sanitizedCode);
       activeReceiveCodeRef.current = sanitizedCode;
       setErrorStatus(null);
-      setTransferProgress(0);
 
       // Pre-warm key derivation for receiver immediately
       keyDerivationPromiseRef.current = deriveKey(sanitizedCode);
@@ -410,19 +470,19 @@ export function usePeerConnection({
               const typedData = data as PeerMessage;
               if (typedData.type === 'metadata') {
                 if (!fileMetaRef.current) {
-                  const meta = {
+                  const meta: FileMeta = {
                     name: typedData.name,
                     size: typedData.size,
                     type: typedData.mime,
+                    sha256: typedData.sha256,
                   };
                   setFileMeta(meta);
                   fileMetaRef.current = meta;
-                  receivedChunksRef.current = [];
-                  receivedBytesRef.current = 0;
-                  requestedOffsetRef.current = 0;
+                  if (typedData.expirationSec !== undefined) {
+                    setExpirationSec(typedData.expirationSec);
+                  }
                   transferCompletedRef.current = false;
-                  setTransferProgress(0);
-                  lastSpeedCalcRef.current = { time: Date.now(), bytes: 0 };
+                  lastSpeedCalcRef.current = { time: Date.now(), bytes: receivedBytesRef.current };
 
                   if (!cryptoKeyRef.current) {
                     if (!keyDerivationPromiseRef.current) {
@@ -439,11 +499,13 @@ export function usePeerConnection({
                     return;
                   }
 
-                  // Pipeline: Request initial window of parallel chunks
+                  // Pipeline: Request window of parallel chunks starting from current resume offset
+                  const startOffset = requestedOffsetRef.current || 0;
                   for (let i = 0; i < PIPELINE_WINDOW_SIZE; i++) {
-                    if (requestedOffsetRef.current < meta.size) {
-                      conn.send({ type: 'request-chunk', offset: requestedOffsetRef.current });
-                      requestedOffsetRef.current += CHUNK_SIZE;
+                    const reqOffset = startOffset + i * CHUNK_SIZE;
+                    if (reqOffset < meta.size) {
+                      conn.send({ type: 'request-chunk', offset: reqOffset });
+                      requestedOffsetRef.current = reqOffset + CHUNK_SIZE;
                     }
                   }
                 }
@@ -491,7 +553,16 @@ export function usePeerConnection({
                   }
                 }
               } else if (typedData.type === 'chat') {
-                onChatMessage(typedData.text);
+                if (typedData.encrypted && cryptoKeyRef.current) {
+                  try {
+                    const text = await decryptChatMessage(typedData.encrypted, cryptoKeyRef.current);
+                    onChatMessage(text);
+                  } catch {
+                    // fallback
+                  }
+                } else if (typedData.text) {
+                  onChatMessage(typedData.text);
+                }
               }
             } catch (err: unknown) {
               const message = err instanceof Error ? err.message : String(err);
@@ -560,17 +631,28 @@ export function usePeerConnection({
   );
 
   const broadcastToAll = useCallback(
-    (msg: PeerMessage) => {
+    async (msg: PeerMessage) => {
+      let finalMsg = msg;
+      // Automatically encrypt text chat messages if key is available
+      if (msg.type === 'chat' && msg.text && cryptoKeyRef.current) {
+        try {
+          const encryptedBuf = await encryptChatMessage(msg.text, cryptoKeyRef.current);
+          finalMsg = { type: 'chat', encrypted: encryptedBuf };
+        } catch {
+          finalMsg = msg;
+        }
+      }
+
       if (mode === 'send') {
         multiConnsRef.current.forEach((c) => {
           try {
-            if (c.open) c.send(msg);
+            if (c.open) c.send(finalMsg);
           } catch {
             // ignore
           }
         });
       } else if (connRef.current?.open) {
-        connRef.current.send(msg);
+        connRef.current.send(finalMsg);
       }
     },
     [mode],

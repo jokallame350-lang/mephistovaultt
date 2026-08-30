@@ -133,3 +133,22 @@ export async function decryptChunk(
   );
 }
 
+/**
+ * Encrypt a text chat message with AES-256-GCM.
+ * Returns IV (12 bytes) + ciphertext as an ArrayBuffer.
+ */
+export async function encryptChatMessage(text: string, key: CryptoKey): Promise<ArrayBuffer> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(text);
+  return encryptChunk(data.buffer, key);
+}
+
+/**
+ * Decrypt an encrypted chat message ArrayBuffer with AES-256-GCM.
+ * Returns decrypted UTF-8 plaintext string.
+ */
+export async function decryptChatMessage(data: ArrayBuffer, key: CryptoKey): Promise<string> {
+  const decrypted = await decryptChunk(data, key);
+  const decoder = new TextDecoder();
+  return decoder.decode(decrypted);
+}

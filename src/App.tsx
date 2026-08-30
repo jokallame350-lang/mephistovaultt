@@ -203,7 +203,11 @@ export function App() {
   }, [peerMode]);
 
   const handleCopyLink = useCallback(async () => {
-    const textToCopy = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(peerShareCode)}`;
+    const parts = peerShareCode.split('#');
+    const textToCopy = parts.length > 1
+      ? `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(parts[0])}#${encodeURIComponent(parts[1])}`
+      : `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(peerShareCode)}`;
+
     const success = await copyToClipboard(textToCopy);
     if (success) {
       peerSetCopied(true);

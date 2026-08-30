@@ -5,21 +5,21 @@ export type AppMode = 'idle' | 'send' | 'receive';
 
 // ── PeerJS Messages (discriminated union) ──
 export type PeerMessage =
-  | { type: 'metadata'; name: string; size: number; mime: string }
+  | { type: 'metadata'; name: string; size: number; mime: string; sha256?: string; expirationSec?: number }
   | { type: 'chunk'; buffer: ArrayBuffer; offset: number }
   | { type: 'request-metadata' }
   | { type: 'request-chunk'; offset: number }
-  | { type: 'chat'; text: string };
+  | { type: 'chat'; text?: string; encrypted?: ArrayBuffer };
 
 // ── Lobby / Discovery Messages ──
 export type LobbyMessage =
   | { type: 'announce'; device: DeviceInfo }
-  | { type: 'invite'; targetId: string; code: string }
+  | { type: 'invite'; targetId: string; code: string; fromName?: string }
   | { type: 'lobby-sync'; devices: Record<string, DeviceInfo> };
 
 export type BroadcastMessage =
   | { type: 'announce'; id: string; name: string; time: number; code?: string; mode?: AppMode }
-  | { type: 'invite'; targetId: string; code: string }
+  | { type: 'invite'; targetId: string; code: string; fromName?: string }
   | { type: 'lobby-sync'; devices: Record<string, DeviceInfo> }
   | { type: 'leave'; id: string };
 
@@ -37,12 +37,15 @@ export interface FileMeta {
   name: string;
   size: number;
   type: string;
+  sha256?: string;
 }
 
 export interface CompletedFile {
   blob: Blob;
   name: string;
   type: string;
+  sha256?: string;
+  isShaVerified?: boolean;
 }
 
 export interface ZipEntry {
@@ -98,4 +101,3 @@ export interface PeerDataConnectionExt extends DataConnection {
 export interface PeerCustomError extends Error {
   type?: string;
 }
-
