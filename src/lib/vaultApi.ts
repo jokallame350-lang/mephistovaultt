@@ -1,6 +1,7 @@
 /**
  * MephistoVault — Vault Share Client API SDK
  * Orchestrates client-side encryption, uploading, progress monitoring, and downloading.
+ * Supports direct-to-R2 presigned uploads and local-first fallback.
  */
 
 import { VaultManager } from './vaultStore';
@@ -12,7 +13,7 @@ import {
   decryptBlobToFile,
 } from './vaultCrypto';
 import { calculateSHA256 } from './encryption';
-import type { VaultRecord, VaultCreatePayload, VaultFileItem } from '../types/vault';
+import type { VaultRecord, VaultCreatePayload, VaultFileItem, VaultCreateResponse } from '../types/vault';
 
 export interface CreateVaultOptions {
   name?: string;
@@ -36,6 +37,7 @@ export interface CreatedVaultResult {
 
 /**
  * Encrypts files client-side and creates a hosted Vault Share.
+ * When Cloudflare R2 is configured, uploads directly to R2 via presigned URLs.
  */
 export async function createEncryptedVault(options: CreateVaultOptions): Promise<CreatedVaultResult> {
   const { files, onProgress } = options;
@@ -102,19 +104,66 @@ export async function createEncryptedVault(options: CreateVaultOptions): Promise
   };
 
   onProgress?.(30, 'Registering secure Vault manifest...');
-  const { vault, managementToken, uploadInstructions } = await VaultManager.createVault(payload);
+
+  let vault!: VaultRecord;
+  let managementToken = '';
+  let uploadUrls: Array<{ fileId: string; storageKey: string; uploadUrl: string }> = [];
+
+  // Try serverless API first
+  let useApi = false;
+  if (typeof window !== 'undefined') {
+    try {
+      const response = await fetch('/api/vaults', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (response.ok) {
+        const data = (await response.json()) as VaultCreateResponse;
+        vault = data.vault;
+        managementToken = data.managementToken;
+        uploadUrls = data.uploadUrls || [];
+        useApi = true;
+      }
+    } catch {
+      useApi = false;
+    }
+  }
+
+  // Fallback to local-first storage manager
+  if (!useApi) {
+    const localRes = await VaultManager.createVault(payload);
+    vault = localRes.vault;
+    managementToken = localRes.managementToken;
+    uploadUrls = localRes.uploadInstructions.map((ins) => ({
+      fileId: ins.fileId,
+      storageKey: ins.storageKey,
+      uploadUrl: '',
+    }));
+  }
 
   // Encrypt and upload each file
   const totalFiles = files.length;
   for (let i = 0; i < totalFiles; i++) {
     const file = files[i];
-    const instruction = uploadInstructions[i];
+    const instruction = uploadUrls[i];
 
     const currentPercent = 30 + Math.round(((i + 1) / totalFiles) * 65);
     onProgress?.(currentPercent, `Encrypting and uploading: ${file.name} (${i + 1}/${totalFiles})...`);
 
     const encryptedBlob = await encryptFileToBlob(file, key);
-    await VaultManager.putFileBlob(instruction.storageKey, encryptedBlob);
+
+    // If presigned R2 upload URL is available, PUT directly to Cloudflare R2
+    if (instruction?.uploadUrl && instruction.uploadUrl.startsWith('http')) {
+      await fetch(instruction.uploadUrl, {
+        method: 'PUT',
+        body: encryptedBlob,
+        headers: { 'Content-Type': 'application/octet-stream' },
+      });
+    } else {
+      // Store in memory / local store
+      await VaultManager.putFileBlob(instruction.storageKey, encryptedBlob);
+    }
   }
 
   onProgress?.(100, 'Vault creation complete!');
@@ -135,6 +184,16 @@ export async function createEncryptedVault(options: CreateVaultOptions): Promise
  * Fetches public metadata of a Vault by its Vault ID.
  */
 export async function getVaultMetadata(vaultId: string): Promise<VaultRecord> {
+  if (typeof window !== 'undefined') {
+    try {
+      const response = await fetch(`/api/vaults/${vaultId}`);
+      if (response.ok) {
+        return (await response.json()) as VaultRecord;
+      }
+    } catch {
+      // fallback
+    }
+  }
   return VaultManager.getVault(vaultId);
 }
 
@@ -154,18 +213,61 @@ export async function downloadAndDecryptVaultFile(
     pwdHash = res.hash;
   }
 
-  const auth = await VaultManager.authorizeDownload(vaultId, fileItem.id, pwdHash);
-  if (!auth.authorized || !auth.fileBlob) {
-    throw new Error(auth.error || 'Unauthorized download.');
+  let encryptedBlob: Blob | null = null;
+
+  // Try downloading via API / Presigned R2 URL
+  if (typeof window !== 'undefined') {
+    try {
+      const authRes = await fetch(`/api/vaults/${vaultId}/download`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileId: fileItem.id, passwordHash: pwdHash }),
+      });
+
+      if (authRes.ok) {
+        const authData = await authRes.json();
+        if (authData.downloadUrl) {
+          const blobRes = await fetch(authData.downloadUrl);
+          if (blobRes.ok) {
+            encryptedBlob = await blobRes.blob();
+          }
+        }
+      }
+    } catch {
+      // fallback
+    }
+  }
+
+  // Fallback to local store
+  if (!encryptedBlob) {
+    const auth = await VaultManager.authorizeDownload(vaultId, fileItem.id, pwdHash);
+    if (!auth.authorized || !auth.fileBlob) {
+      throw new Error(auth.error || 'Unauthorized download.');
+    }
+    encryptedBlob = auth.fileBlob;
   }
 
   const key = await importVaultKey(secretKeyString);
-  return decryptBlobToFile(auth.fileBlob, key, fileItem.filename, fileItem.mimeType);
+  return decryptBlobToFile(encryptedBlob, key, fileItem.filename, fileItem.mimeType);
 }
 
 /**
  * Deletes a Vault and removes all objects using management token.
  */
 export async function deleteVaultWithToken(vaultId: string, managementToken: string): Promise<boolean> {
+  if (typeof window !== 'undefined') {
+    try {
+      const res = await fetch(`/api/vaults/${vaultId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-management-token': managementToken,
+        },
+      });
+      if (res.ok) return true;
+    } catch {
+      // fallback
+    }
+  }
   return VaultManager.deleteVault(vaultId, managementToken);
 }
