@@ -1,0 +1,87 @@
+import { describe, it, expect } from 'vitest';
+import { sanitizePath, buildFolderManifest, flattenManifest } from '../lib/folderManifest';
+import { VirtualPackage } from '../lib/virtualPackage';
+import { generateShareUrl, parseRoomCode } from '../lib/utils';
+import { encryptChunk, decryptChunk, deriveKey, calculateSHA256 } from '../lib/encryption';
+
+describe('Transfer Hardening & Security Audit Suite', () => {
+  describe('Folder Path Mapping & Deterministic Matching', () => {
+    it('sanitizes dangerous directory traversal paths safely', () => {
+      expect(sanitizePath('../../etc/passwd')).toBe('etc/passwd');
+      expect(sanitizePath('..\\..\\windows\\system32\\cmd.exe')).toBe('windows/system32/cmd.exe');
+      expect(sanitizePath('C:\\Users\\admin\\secret.txt')).toBe('Users/admin/secret.txt');
+      expect(sanitizePath('/var/log/secret.log')).toBe('var/log/secret.log');
+      expect(sanitizePath('foo\0bar.txt')).toBe('foobar.txt');
+      expect(sanitizePath('')).toBe('unnamed_file');
+    });
+
+    it('builds deterministic folder manifest with exact relative paths', () => {
+      const file1 = new File(['A'], 'file.txt', { type: 'text/plain' });
+      const file2 = new File(['B'], 'file.txt', { type: 'text/plain' });
+      // Same filename in different directories
+      (file1 as unknown as { customPath: string }).customPath = 'dirA/file.txt';
+      (file2 as unknown as { customPath: string }).customPath = 'dirB/file.txt';
+
+      const manifest = buildFolderManifest([file1, file2]);
+      const flat = flattenManifest(manifest);
+
+      expect(flat.length).toBe(2);
+      expect(flat[0].relativePath).toBe('dirA/file.txt');
+      expect(flat[1].relativePath).toBe('dirB/file.txt');
+      expect(flat[0].relativePath).not.toBe(flat[1].relativePath);
+    });
+  });
+
+  describe('Zero-RAM Virtual Package Slicing', () => {
+    it('slices virtual tar packages with exact byte precision', async () => {
+      const payload1 = 'Content of file 1 in virtual tar';
+      const payload2 = 'Content of file 2 in virtual tar';
+      const file1 = new File([payload1], 'folder/one.txt', { type: 'text/plain' });
+      const file2 = new File([payload2], 'folder/two.txt', { type: 'text/plain' });
+
+      const pkg = new VirtualPackage([file1, file2]);
+      const synthetic = pkg.toSyntheticFile();
+
+      expect(synthetic.size).toBe(pkg.totalSize);
+
+      // Read chunk spanning boundary
+      const chunk = await synthetic.slice(0, 1024).arrayBuffer();
+      expect(chunk.byteLength).toBe(1024);
+    });
+  });
+
+  describe('Share URL Secret Privacy Audit', () => {
+    it('strictly isolates the secret key in URL hash fragment and never in query params', () => {
+      const shareCode = 'abc-xyz#9876';
+      const shareUrl = generateShareUrl(shareCode);
+      const url = new URL(shareUrl, 'https://mephistoshares.online');
+
+      // Query param must ONLY contain public room ID
+      expect(url.searchParams.get('room')).toBe('abc-xyz');
+      // Hash fragment contains the secret key
+      expect(url.hash).toBe('#9876');
+      expect(shareUrl).not.toContain('room=abc-xyz%239876');
+
+      // Parse room code roundtrip
+      const parsed = parseRoomCode(shareUrl);
+      expect(parsed).toBe('abc-xyz#9876');
+    });
+  });
+
+  describe('Cryptographic Integrity & AES-256-GCM Verification', () => {
+    it('encrypts, decrypts and computes SHA-256 verification hash accurately', async () => {
+      const secret = 'sec-ret#5555';
+      const key = await deriveKey(secret);
+      const data = new Uint8Array([10, 20, 30, 40, 50, 60, 70, 80]).buffer;
+
+      const encrypted = await encryptChunk(data, key);
+      const decrypted = await decryptChunk(encrypted, key);
+
+      expect(new Uint8Array(decrypted)).toEqual(new Uint8Array(data));
+
+      const hashOriginal = await calculateSHA256(data);
+      const hashDecrypted = await calculateSHA256(decrypted);
+      expect(hashOriginal).toBe(hashDecrypted);
+    });
+  });
+});

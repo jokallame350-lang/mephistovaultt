@@ -15,7 +15,7 @@ import GhostChat from './components/GhostChat';
 import NearbyDevices from './components/NearbyDevices';
 import SEOFooter from './components/SEOFooter';
 import GlobalDropzone from './components/GlobalDropzone';
-import { playTransferSound, copyToClipboard, downloadQRCode, generateCode, parseRoomCode } from './lib/utils';
+import { playTransferSound, copyToClipboard, downloadQRCode, generateCode, parseRoomCode, generateShareUrl } from './lib/utils';
 
 import type { PeerMessage } from './types';
 
@@ -260,11 +260,7 @@ export function App() {
   }, [peerMode]);
 
   const handleCopyLink = useCallback(async () => {
-    const parts = peerShareCode.split('#');
-    const textToCopy = parts.length > 1
-      ? `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(parts[0])}#${encodeURIComponent(parts[1])}`
-      : `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(peerShareCode)}`;
-
+    const textToCopy = generateShareUrl(peerShareCode);
     const success = await copyToClipboard(textToCopy);
     if (success) {
       peerSetCopied(true);

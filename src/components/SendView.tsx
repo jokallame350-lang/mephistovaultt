@@ -38,7 +38,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { formatBytes } from '../lib/utils';
+import { formatBytes, generateShareUrl } from '../lib/utils';
 import { EXPIRATION_OPTIONS } from '../lib/constants';
 import { hideFileInCarrierImage } from '../lib/steganography';
 import TransferProgress from './TransferProgress';
@@ -1122,7 +1122,7 @@ export const SendView = React.memo(function SendView({
                     <button
                       type="button"
                       onClick={async () => {
-                        const shareUrl = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`;
+                        const shareUrl = generateShareUrl(shareCode);
                         try {
                           await navigator.share({
                             title: 'MephistoVault',
@@ -1145,7 +1145,7 @@ export const SendView = React.memo(function SendView({
 
                   <a
                     href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                      `${t('shareTextPrefix')}\n${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`
+                      `${t('shareTextPrefix')}\n${generateShareUrl(shareCode)}`
                     )}`}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -1158,7 +1158,7 @@ export const SendView = React.memo(function SendView({
 
                   <a
                     href={`https://t.me/share/url?url=${encodeURIComponent(
-                      `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`
+                      generateShareUrl(shareCode)
                     )}&text=${encodeURIComponent(t('shareTextPrefix'))}`}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -1171,7 +1171,7 @@ export const SendView = React.memo(function SendView({
 
                   <a
                     href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(
-                      `${t('shareTextPrefix')} ${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`
+                      `${t('shareTextPrefix')} ${generateShareUrl(shareCode)}`
                     )}`}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -1184,7 +1184,7 @@ export const SendView = React.memo(function SendView({
 
                   <a
                     href={`mailto:?subject=${encodeURIComponent('MephistoVault Secure Vault Link')}&body=${encodeURIComponent(
-                      `${t('shareTextPrefix')}\n\n${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`
+                      `${t('shareTextPrefix')}\n\n${generateShareUrl(shareCode)}`
                     )}`}
                     className="flex items-center gap-1.5 px-3 py-2 bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 rounded-xl text-xs font-bold text-purple-300 transition-all cursor-pointer shadow-sm hover:scale-105"
                     title={t('emailShare')}
@@ -1233,7 +1233,7 @@ export const SendView = React.memo(function SendView({
                         {/* High Error Tolerance Cyberpunk QR Code */}
                         <QRCodeCanvas
                           id="mephistovault-qr-canvas"
-                          value={`${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`}
+                          value={generateShareUrl(shareCode)}
                           size={240}
                           bgColor="#050811"
                           fgColor="#10b981"
@@ -1373,7 +1373,7 @@ export const SendView = React.memo(function SendView({
               <div className="bg-[#050811] border border-emerald-500/40 p-6 rounded-2xl flex justify-center mb-6 shadow-[0_0_30px_rgba(16,185,129,0.2)] relative group">
                 <QRCodeCanvas
                   id="mephistovault-qr-lightbox-canvas"
-                  value={`${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(shareCode)}`}
+                  value={generateShareUrl(shareCode)}
                   size={280}
                   bgColor="#050811"
                   fgColor="#10b981"

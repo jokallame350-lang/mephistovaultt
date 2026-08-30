@@ -180,6 +180,21 @@ export function parseRoomCode(rawInput: string): string {
   return str.trim();
 }
 
+/**
+ * Generate canonical share URL with strict secret privacy in hash fragment:
+ * https://domain/pathname?room=ABC-XYZ#SECRET
+ */
+export function generateShareUrl(code: string): string {
+  if (!code) return '';
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '/';
+  const parts = code.split('#');
+  if (parts.length > 1) {
+    return `${origin}${pathname}?room=${encodeURIComponent(parts[0])}#${encodeURIComponent(parts[1])}`;
+  }
+  return `${origin}${pathname}?room=${encodeURIComponent(code)}`;
+}
+
 // ── Audio Notification ──
 export {
   playTransferSound,
