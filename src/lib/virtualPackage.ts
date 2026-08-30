@@ -312,6 +312,11 @@ export class VirtualPackage {
       return customBlob;
     };
 
+    // Override arrayBuffer on synthetic File instance for full-package checksumming
+    dummyFile.arrayBuffer = async function (): Promise<ArrayBuffer> {
+      return readSliceFn(0, totalPkgSize);
+    };
+
     return dummyFile;
   }
 }

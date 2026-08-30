@@ -50,4 +50,16 @@ describe('Virtual Package Streamer Suite', () => {
     const chunk2Text = new TextDecoder().decode(chunk2);
     expect(chunk2Text.endsWith('A'.repeat(88))).toBe(true);
   });
+
+  it('syntheticFile.arrayBuffer() matches bit-for-bit full slice arrayBuffer', async () => {
+    const file1 = new File(['Sample 12345'], 'folder/test.txt', { type: 'text/plain' });
+    const pkg = new VirtualPackage([file1]);
+    const syntheticFile = pkg.toSyntheticFile();
+
+    const fullDirectBuf = await syntheticFile.arrayBuffer();
+    const fullSliceBuf = await syntheticFile.slice(0, syntheticFile.size).arrayBuffer();
+
+    expect(fullDirectBuf.byteLength).toBe(pkg.totalSize);
+    expect(new Uint8Array(fullDirectBuf)).toEqual(new Uint8Array(fullSliceBuf));
+  });
 });
