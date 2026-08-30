@@ -109,6 +109,9 @@ function createTarHeader(relativePath: string, size: number, mtime: number): Uin
   return header;
 }
 
+export const MAX_VIRTUAL_FILES = 100_000;
+export const MAX_VIRTUAL_ENTRY_PATH_LEN = 255;
+
 /**
  * Virtual Package Class
  * Simulates a continuous multi-gigabyte file without pre-allocating RAM or compressing upfront.
@@ -121,22 +124,44 @@ export class VirtualPackage {
   private readonly endPaddingSize = 1024; // 2 x 512-byte zero blocks at TAR end
 
   constructor(files: File[], customPackageName?: string) {
+    if (files.length > MAX_VIRTUAL_FILES) {
+      throw new Error(`File count exceeds maximum allowed virtual package limit (${MAX_VIRTUAL_FILES})`);
+    }
+
     this.fileCount = files.length;
     this.name =
       customPackageName ||
       `mephisto-vault-package-${files.length}-files-${Math.floor(Date.now() / 1000)}.tar`;
 
     let currentOffset = 0;
+    const usedPaths = new Set<string>();
 
-    for (const file of files) {
+    for (let index = 0; index < files.length; index++) {
+      const file = files[index];
       const rawPath =
         (file as FileWithCustomPath).customPath ||
         (file.webkitRelativePath && file.webkitRelativePath.includes('/')
           ? file.webkitRelativePath
           : file.name);
 
-      const relativePath = sanitizePath(rawPath);
-      const size = file.size || 0;
+      let relativePath = sanitizePath(rawPath);
+      if (relativePath.length > MAX_VIRTUAL_ENTRY_PATH_LEN) {
+        relativePath = relativePath.substring(relativePath.length - MAX_VIRTUAL_ENTRY_PATH_LEN);
+      }
+
+      // Resolve duplicate paths deterministically
+      if (usedPaths.has(relativePath)) {
+        const dotIdx = relativePath.lastIndexOf('.');
+        if (dotIdx !== -1) {
+          relativePath = `${relativePath.slice(0, dotIdx)} (${index + 1})${relativePath.slice(dotIdx)}`;
+        } else {
+          relativePath = `${relativePath} (${index + 1})`;
+        }
+      }
+      usedPaths.add(relativePath);
+
+      const rawSize = file.size;
+      const size = typeof rawSize === 'number' && isFinite(rawSize) && rawSize >= 0 ? rawSize : 0;
       const mtime = file.lastModified || Date.now();
 
       const headerBuffer = createTarHeader(relativePath, size, mtime);
@@ -165,7 +190,15 @@ export class VirtualPackage {
    * Only the requested chunk (e.g. 64KB - 256KB) is loaded from disk into memory.
    */
   public async readSlice(offset: number, length: number): Promise<ArrayBuffer> {
-    if (offset >= this.totalSize || length <= 0) {
+    if (
+      typeof offset !== 'number' ||
+      isNaN(offset) ||
+      offset < 0 ||
+      offset >= this.totalSize ||
+      typeof length !== 'number' ||
+      isNaN(length) ||
+      length <= 0
+    ) {
       return new ArrayBuffer(0);
     }
 

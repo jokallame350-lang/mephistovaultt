@@ -68,7 +68,7 @@ describe('Transfer Hardening & Security Audit Suite', () => {
     });
   });
 
-  describe('Cryptographic Integrity & AES-256-GCM Verification', () => {
+  describe('Cryptographic Integrity & SHA-256 Verification (SUCCESS = verified)', () => {
     it('encrypts, decrypts and computes SHA-256 verification hash accurately', async () => {
       const secret = 'sec-ret#5555';
       const key = await deriveKey(secret);
@@ -82,6 +82,40 @@ describe('Transfer Hardening & Security Audit Suite', () => {
       const hashOriginal = await calculateSHA256(data);
       const hashDecrypted = await calculateSHA256(decrypted);
       expect(hashOriginal).toBe(hashDecrypted);
+    });
+
+    it('detects tampered payload and fails SHA-256 verification check', async () => {
+      const originalData = new TextEncoder().encode('Original authentic payload').buffer;
+      const tamperedData = new TextEncoder().encode('Malicious modified payload').buffer;
+
+      const hashOriginal = await calculateSHA256(originalData);
+      const hashTampered = await calculateSHA256(tamperedData);
+
+      expect(hashOriginal).not.toBe(hashTampered);
+      const isVerified = hashOriginal.toLowerCase() === hashTampered.toLowerCase();
+      expect(isVerified).toBe(false);
+    });
+  });
+
+  describe('Folder & Virtual Package Stream Boundary Limits', () => {
+    it('resolves duplicate paths deterministically and enforces bounds on readSlice', async () => {
+      const file1 = new File(['alpha'], 'sub/doc.txt', { type: 'text/plain' });
+      const file2 = new File(['beta'], 'sub/doc.txt', { type: 'text/plain' });
+
+      const pkg = new VirtualPackage([file1, file2]);
+      expect(pkg.entries.length).toBe(2);
+      expect(pkg.entries[0].relativePath).toBe('sub/doc.txt');
+      expect(pkg.entries[1].relativePath).toBe('sub/doc (2).txt');
+
+      // Invalid or out of bounds offsets return empty buffer
+      const negSlice = await pkg.readSlice(-10, 100);
+      expect(negSlice.byteLength).toBe(0);
+
+      const oobSlice = await pkg.readSlice(pkg.totalSize + 500, 100);
+      expect(oobSlice.byteLength).toBe(0);
+
+      const zeroLenSlice = await pkg.readSlice(0, 0);
+      expect(zeroLenSlice.byteLength).toBe(0);
     });
   });
 });

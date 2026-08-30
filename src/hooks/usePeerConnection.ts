@@ -288,6 +288,7 @@ export function usePeerConnection({
   }, [expirationSec, broadcastToAll, resetConnection]);
 
   const finalizeDownload = useCallback(async (name: string, type: string) => {
+    const meta = fileMetaRef.current;
     const blob = new Blob(receivedChunksRef.current, { type: type || 'application/octet-stream' });
     receivedChunksRef.current = []; // Free ArrayBuffers memory
 
@@ -298,18 +299,26 @@ export function usePeerConnection({
     }
     setLiveMediaUrl(null);
 
+    // 1. Strict Size Validation
+    if (meta && meta.size > 0 && blob.size !== meta.size) {
+      setErrorStatus(`Transfer size mismatch: expected ${meta.size} bytes, received ${blob.size} bytes.`);
+      return;
+    }
+
+    // 2. Strict SHA-256 Checksum Validation (SUCCESS = receiver SHA-256 verified)
     let calculatedHash = '';
-    let isShaVerified = true;
-    const expectedHash = fileMetaRef.current?.sha256;
+    const expectedHash = meta?.sha256;
 
     try {
       const buffer = await blob.arrayBuffer();
       calculatedHash = await calculateSHA256(buffer);
-      if (expectedHash && calculatedHash.toLowerCase() !== expectedHash.toLowerCase()) {
-        isShaVerified = false;
-      }
     } catch {
-      // ignore
+      // hash calculation failure
+    }
+
+    if (expectedHash && (!calculatedHash || calculatedHash.toLowerCase() !== expectedHash.toLowerCase())) {
+      setErrorStatus(`Cryptographic integrity failure: SHA-256 seal mismatch. File rejected.`);
+      return;
     }
 
     setCompletedFile({
@@ -317,7 +326,7 @@ export function usePeerConnection({
       name,
       type,
       sha256: calculatedHash || expectedHash,
-      isShaVerified,
+      isShaVerified: true,
     });
     setTransferProgress(100);
     onTransferComplete();
@@ -748,8 +757,28 @@ export function usePeerConnection({
                   }
                 }
               } else if (typedData.type === 'chunk') {
+                const meta = fileMetaRef.current;
+                if (!meta) {
+                  throw new Error('Protocol violation: chunk received before file metadata.');
+                }
+
                 const buffer = typedData.buffer;
-                if (!buffer) throw new Error('Empty buffer received.');
+                if (!buffer || !(buffer instanceof ArrayBuffer) || buffer.byteLength === 0) {
+                  throw new Error('Malformed or empty chunk buffer received.');
+                }
+
+                // Strict buffer size limit (CHUNK_SIZE + auth tag & IV margin)
+                if (buffer.byteLength > CHUNK_SIZE + 2048) {
+                  throw new Error(`Oversized chunk buffer rejected (${buffer.byteLength} bytes).`);
+                }
+
+                if (typeof typedData.offset !== 'number' || isNaN(typedData.offset) || typedData.offset < 0) {
+                  throw new Error(`Invalid chunk offset: ${typedData.offset}`);
+                }
+
+                if (meta.size > 0 && typedData.offset >= meta.size) {
+                  throw new Error(`Out-of-bounds chunk offset: ${typedData.offset} >= ${meta.size}`);
+                }
 
                 if (!cryptoKeyRef.current) {
                   if (!keyDerivationPromiseRef.current) {
@@ -783,8 +812,11 @@ export function usePeerConnection({
                 }
 
                 const byteLength = (rawBuffer as ArrayBuffer).byteLength ?? 0;
-
                 if (byteLength === 0) throw new Error('Received chunk has zero length.');
+
+                if (meta.size > 0 && typedData.offset + byteLength > meta.size + 1024) {
+                  throw new Error(`Chunk data extends past expected file size (${typedData.offset + byteLength} > ${meta.size})`);
+                }
 
                 const chunkIndex = Math.floor(typedData.offset / CHUNK_SIZE);
 
@@ -838,7 +870,6 @@ export function usePeerConnection({
                   }
                 }
 
-                const meta = fileMetaRef.current;
                 if (meta) {
                   calculateSpeedAndETA(receivedBytesRef.current, meta.size);
                   const progress = Math.round((receivedBytesRef.current / meta.size) * 100);
