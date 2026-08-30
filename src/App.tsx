@@ -180,18 +180,20 @@ export function App() {
   const setPeerShareCode = peer.setShareCode;
   const peerSetCopied = peer.setCopied;
 
+  const peerInitSender = peer.initSender;
+
   // Generate share code and init sender atomically when mode is set to 'send'
   useEffect(() => {
     if (peerMode === 'send') {
       if (!peerShareCode) {
         const newCode = generateCode();
         setPeerShareCode(newCode);
-        peer.initSender(newCode);
+        peerInitSender(newCode);
       } else {
-        peer.initSender(peerShareCode);
+        peerInitSender(peerShareCode);
       }
     }
-  }, [peerMode]);
+  }, [peerMode, peerShareCode, setPeerShareCode, peerInitSender]);
 
   // Scroll to top only when mode actually changes to prevent old scroll offsets
   const prevModeRef = useRef(peerMode);
