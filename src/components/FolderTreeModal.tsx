@@ -40,6 +40,7 @@ import {
 import type { FileWithCustomPath } from '../types';
 import { formatBytes, saveFile } from '../lib/utils';
 import { playToggleSound, playTransferCompleteChime, playErrorSound } from '../lib/audioFX';
+import { readTarEntries, extractTarFile } from '../lib/virtualPackage';
 
 export interface FolderTreeModalProps {
   isOpen: boolean;
@@ -367,15 +368,32 @@ export const FolderTreeModal: React.FC<FolderTreeModalProps> = React.memo(functi
           return;
         }
 
-        // If a completed ZIP blob is available in memory
+        // If a completed TAR or ZIP blob is available in memory
         if (completedBlob) {
-          const zip = await JSZip.loadAsync(completedBlob);
-          const zipEntry = zip.file(fileItem.relativePath);
-          if (zipEntry) {
-            const singleBlob = await zipEntry.async('blob');
-            await saveFile(singleBlob, fileItem.name);
-            playTransferCompleteChime();
-            return;
+          try {
+            const tarEntries = await readTarEntries(completedBlob);
+            const tarEntry = tarEntries.find((e) => e.path === fileItem.relativePath || e.name === fileItem.name);
+            if (tarEntry) {
+              const singleBlob = extractTarFile(completedBlob, tarEntry);
+              await saveFile(singleBlob, fileItem.name);
+              playTransferCompleteChime();
+              return;
+            }
+          } catch {
+            // fall back to JSZip
+          }
+
+          try {
+            const zip = await JSZip.loadAsync(completedBlob);
+            const zipEntry = zip.file(fileItem.relativePath);
+            if (zipEntry) {
+              const singleBlob = await zipEntry.async('blob');
+              await saveFile(singleBlob, fileItem.name);
+              playTransferCompleteChime();
+              return;
+            }
+          } catch {
+            // ignore
           }
         }
 

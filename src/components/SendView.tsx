@@ -894,13 +894,13 @@ export const SendView = React.memo(function SendView({
                     )}
                     <span>
                       {isZipping
-                        ? `Packaging ZIP stream (${Math.round(zipProgress)}%)...`
-                        : 'Encrypted ZIP Stream Ready'}
+                        ? `Indexing files (${Math.round(zipProgress)}%)...`
+                        : '⚡ Zero-RAM Direct Package Stream Ready'}
                     </span>
                   </div>
                   {fileToShare && !isZipping && (
                     <span className="text-slate-400 text-[11px]">
-                      ZIP Payload: <strong className="text-emerald-400">{formatBytes(fileToShare.size)}</strong>
+                      Payload: <strong className="text-emerald-400">{formatBytes(fileToShare.size)}</strong>
                     </span>
                   )}
                 </div>

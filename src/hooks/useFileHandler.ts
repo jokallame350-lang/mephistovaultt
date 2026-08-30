@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import JSZip from 'jszip';
 import { playFileDropChime } from '../lib/audioFX';
+import { VirtualPackage, readTarEntries } from '../lib/virtualPackage';
 import type { CompletedFile, ZipEntry, FileWithCustomPath, WebKitEntry, WebKitFileEntry, WebKitDirectoryEntry } from '../types';
 
 export async function scanEntry(entry: WebKitEntry, path = ''): Promise<File[]> {
@@ -96,33 +97,47 @@ export function useFileHandler(
     };
   }, [videoPreviewUrl]);
 
-  // UX Polish: Automatically extract ZIP file info if received
+  // UX Polish: Automatically extract ZIP/TAR file info if received
   useEffect(() => {
     let isMounted = true;
-    if (completedFile && completedFile.name.endsWith('.zip')) {
-      const loadZip = async () => {
+    if (completedFile && (completedFile.name.endsWith('.zip') || completedFile.name.endsWith('.tar'))) {
+      const loadArchive = async () => {
         try {
-          const zip = new JSZip();
-          const loadedZip = await zip.loadAsync(completedFile.blob);
-          const contents: ZipEntry[] = [];
+          if (completedFile.name.endsWith('.tar')) {
+            const entries = await readTarEntries(completedFile.blob);
+            if (isMounted) {
+              setZipContents(
+                entries.map((e) => ({
+                  name: e.name,
+                  path: e.path,
+                  dir: e.dir,
+                  size: e.size,
+                })).sort((a, b) => (a.dir === b.dir ? 0 : a.dir ? -1 : 1))
+              );
+            }
+          } else {
+            const zip = new JSZip();
+            const loadedZip = await zip.loadAsync(completedFile.blob);
+            const contents: ZipEntry[] = [];
 
-          loadedZip.forEach((relativePath, zipEntry) => {
-            contents.push({
-              name: zipEntry.name.split('/').filter(Boolean).pop() || zipEntry.name,
-              path: relativePath,
-              dir: zipEntry.dir,
-              size: (zipEntry as unknown as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize || 0,
+            loadedZip.forEach((relativePath, zipEntry) => {
+              contents.push({
+                name: zipEntry.name.split('/').filter(Boolean).pop() || zipEntry.name,
+                path: relativePath,
+                dir: zipEntry.dir,
+                size: (zipEntry as unknown as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize || 0,
+              });
             });
-          });
 
-          if (isMounted) {
-            setZipContents(contents.sort((a, b) => (a.dir === b.dir ? 0 : a.dir ? -1 : 1)));
+            if (isMounted) {
+              setZipContents(contents.sort((a, b) => (a.dir === b.dir ? 0 : a.dir ? -1 : 1)));
+            }
           }
         } catch {
           // handled silently
         }
       };
-      loadZip();
+      loadArchive();
     } else {
       const resetTimer = setTimeout(() => {
         if (isMounted) {
@@ -189,64 +204,16 @@ export function useFileHandler(
       setZipProgress(0);
       setFileToShare(combinedFiles[0]);
     } else {
-      const currentTaskSeq = ++zipTaskSeqRef.current;
-      setIsZipping(true);
-      setZipProgress(0);
-
+      zipTaskSeqRef.current++;
       try {
-        const zip = new JSZip();
-        const usedPaths = new Set<string>();
-
-        combinedFiles.forEach((f, index) => {
-          let path =
-            (f as FileWithCustomPath).customPath ||
-            (f.webkitRelativePath && f.webkitRelativePath.includes('/')
-              ? f.webkitRelativePath
-              : f.name);
-
-          // Resolve duplicate file paths
-          if (usedPaths.has(path)) {
-            const dotIdx = path.lastIndexOf('.');
-            if (dotIdx !== -1) {
-              path = `${path.slice(0, dotIdx)} (${index + 1})${path.slice(dotIdx)}`;
-            } else {
-              path = `${path} (${index + 1})`;
-            }
-          }
-          usedPaths.add(path);
-          zip.file(path, f);
-        });
-
-        // Package into ZIP stream
-        const content = await zip.generateAsync(
-          {
-            type: 'blob',
-            compression: 'DEFLATE',
-            compressionOptions: { level: 5 },
-          },
-          (meta) => {
-            if (currentTaskSeq === zipTaskSeqRef.current) {
-              setZipProgress(meta.percent);
-            }
-          },
-        );
-
-        if (currentTaskSeq !== zipTaskSeqRef.current) return;
-
-        const bundleName = `mephisto-bundle-${combinedFiles.length}-files-${Math.floor(
-          Date.now() / 1000
-        )}.zip`;
-        const bundledFile = new File([content], bundleName, {
-          type: 'application/zip',
-        });
-
+        const vpkg = new VirtualPackage(combinedFiles);
+        const syntheticFile = vpkg.toSyntheticFile();
         setIsZipping(false);
-        setFileToShare(bundledFile);
+        setZipProgress(100);
+        setFileToShare(syntheticFile);
       } catch (err) {
-        if (currentTaskSeq === zipTaskSeqRef.current) {
-          setIsZipping(false);
-          console.error('JSZip packaging error:', err);
-        }
+        setIsZipping(false);
+        console.error('VirtualPackage generation error:', err);
       }
     }
   }, [selectedFiles]);

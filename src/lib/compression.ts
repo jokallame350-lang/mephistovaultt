@@ -268,9 +268,9 @@ export async function compressData(
       const buf = Buffer.from(inputBytes.buffer, inputBytes.byteOffset, inputBytes.byteLength);
       const compressedBuffer = await new Promise<Buffer>((resolve, reject) => {
         if (format === 'deflate') {
-          zlib.deflate(buf, (err, res) => (err ? reject(err) : resolve(res)));
+          zlib.deflate(buf, (err: unknown, res: Buffer) => (err ? reject(err) : resolve(res)));
         } else {
-          zlib.gzip(buf, (err, res) => (err ? reject(err) : resolve(res)));
+          zlib.gzip(buf, (err: unknown, res: Buffer) => (err ? reject(err) : resolve(res)));
         }
       });
 
@@ -366,9 +366,9 @@ export async function decompressData(
       const buf = Buffer.from(inputBytes.buffer, inputBytes.byteOffset, inputBytes.byteLength);
       const decompressedBuffer = await new Promise<Buffer>((resolve, reject) => {
         if (format === 'deflate') {
-          zlib.inflate(buf, (err, res) => (err ? reject(err) : resolve(res)));
+          zlib.inflate(buf, (err: unknown, res: Buffer) => (err ? reject(err) : resolve(res)));
         } else {
-          zlib.gunzip(buf, (err, res) => (err ? reject(err) : resolve(res)));
+          zlib.gunzip(buf, (err: unknown, res: Buffer) => (err ? reject(err) : resolve(res)));
         }
       });
 

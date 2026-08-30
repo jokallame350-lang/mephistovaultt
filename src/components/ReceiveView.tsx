@@ -40,6 +40,7 @@ import MediaRecorderModal from './MediaRecorderModal';
 import CertificateModal from './CertificateModal';
 import LiveSyncTable from './LiveSyncTable';
 import { generateDeliveryCertificate, type DeliveryCertificate } from '../lib/certificate';
+import { readTarEntries, extractTarFile } from '../lib/virtualPackage';
 import type { LiveSyncManager } from '../lib/liveSync';
 import type { FileMeta, CompletedFile, ZipEntry, FileWithCustomPath } from '../types';
 
@@ -854,11 +855,20 @@ export const ReceiveView = React.memo(function ReceiveView({
                                     onClick={async (e) => {
                                       e.stopPropagation();
                                       try {
-                                        const loadedZip = await JSZip.loadAsync(completedFile.blob);
-                                        const zipFile = loadedZip.file(f.path);
-                                        if (zipFile) {
-                                          const singleBlob = await zipFile.async('blob');
-                                          await saveFile(singleBlob, f.name);
+                                        if (completedFile.name.endsWith('.tar')) {
+                                          const entries = await readTarEntries(completedFile.blob);
+                                          const entry = entries.find((item) => item.path === f.path);
+                                          if (entry) {
+                                            const singleBlob = extractTarFile(completedFile.blob, entry);
+                                            await saveFile(singleBlob, f.name);
+                                          }
+                                        } else {
+                                          const loadedZip = await JSZip.loadAsync(completedFile.blob);
+                                          const zipFile = loadedZip.file(f.path);
+                                          if (zipFile) {
+                                            const singleBlob = await zipFile.async('blob');
+                                            await saveFile(singleBlob, f.name);
+                                          }
                                         }
                                       } catch (err: unknown) {
                                         const message = err instanceof Error ? err.message : String(err);
