@@ -3,6 +3,7 @@ import { sanitizePath, buildFolderManifest, flattenManifest } from '../lib/folde
 import { VirtualPackage } from '../lib/virtualPackage';
 import { generateShareUrl, parseRoomCode } from '../lib/utils';
 import { encryptChunk, decryptChunk, deriveKey, calculateSHA256 } from '../lib/encryption';
+import { compressData, decompressData } from '../lib/compression';
 
 describe('Transfer Hardening & Security Audit Suite', () => {
   describe('Folder Path Mapping & Deterministic Matching', () => {
@@ -116,6 +117,37 @@ describe('Transfer Hardening & Security Audit Suite', () => {
 
       const zeroLenSlice = await pkg.readSlice(0, 0);
       expect(zeroLenSlice.byteLength).toBe(0);
+    });
+  });
+
+  describe('Stream Compression & Decompression Pipeline', () => {
+    it('compresses on sender, decrypts and decompresses to exact original byte length on receiver', async () => {
+      const originalText = 'SELECT * FROM users WHERE id IN (1,2,3,4,5,6,7,8,9,10) AND active = 1; '.repeat(50);
+      const originalBuffer = new TextEncoder().encode(originalText).buffer;
+      const expectedSize = originalBuffer.byteLength;
+
+      // 1. Sender: Compress & Encrypt
+      const secret = 'room-sync#1234';
+      const key = await deriveKey(secret);
+      const compRes = await compressData(originalBuffer, 'deflate');
+      expect(compRes.compressed).toBe(true);
+      expect(compRes.buffer.byteLength).toBeLessThan(expectedSize);
+
+      const encrypted = await encryptChunk(compRes.buffer, key);
+
+      // 2. Receiver: Decrypt & Decompress
+      const decrypted = await decryptChunk(encrypted, key);
+      const decompressed = await decompressData(decrypted, 'deflate');
+
+      // The receiver must store the decompressed rawBuffer, reaching exact original byte length!
+      expect(decompressed.byteLength).toBe(expectedSize);
+      const reconstructedText = new TextDecoder().decode(decompressed);
+      expect(reconstructedText).toBe(originalText);
+
+      // SHA-256 integrity seal must match original
+      const hashOriginal = await calculateSHA256(originalBuffer);
+      const hashReconstructed = await calculateSHA256(decompressed);
+      expect(hashReconstructed).toBe(hashOriginal);
     });
   });
 });

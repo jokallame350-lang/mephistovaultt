@@ -822,7 +822,7 @@ export function usePeerConnection({
 
                 // Check duplicate chunk receipt to prevent byte miscounting
                 if (!receivedChunksRef.current[chunkIndex]) {
-                  receivedChunksRef.current[chunkIndex] = decrypted as ArrayBuffer;
+                  receivedChunksRef.current[chunkIndex] = rawBuffer as ArrayBuffer;
                   receivedBytesRef.current += byteLength;
 
                   // Update Swarm Bitfield & Download metrics
