@@ -167,10 +167,14 @@ export function parseRoomCode(rawInput: string): string {
     str = str.replace(/^#\/?(?:room\/)?/, '');
   }
 
-  try {
-    str = decodeURIComponent(str);
-  } catch {
-    // preserve
+  // If raw input was a full URL and no room parameter/hash was found, do NOT treat the base URL as a room code
+  if (/^https?:\/\//i.test(str)) {
+    return '';
+  }
+
+  // If the string contains a domain or URL scheme, reject it as a room code
+  if (str.includes('://') || (str.includes('.') && !str.includes('#'))) {
+    return '';
   }
 
   return str.trim();
