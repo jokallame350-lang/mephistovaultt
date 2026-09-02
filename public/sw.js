@@ -1,5 +1,5 @@
-// MephistoVault PWA Service Worker v3
-const CACHE_NAME = 'mephistovault-v3';
+// MephistoVault PWA Service Worker v4 (Purge Vault Share, Pure P2P Baseline)
+const CACHE_NAME = 'mephistovault-v4';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
